@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Use SQLite for local development to simplify running the dev stack locally.
+  // For production, set DATABASE_URL in .env to a PostgreSQL connection and switch provider accordingly.
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  role      String   @default("CUSTOMER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  addresses Address[]
+  orders    Order[]
+}
+
+model Address {
+  id        String  @id @default(cuid())
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String
+  line1     String
+  line2     String?
+  city      String
+  postcode  String?
+  country   String
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model Product {
+  id            String    @id @default(cuid())
+  name          String
+  slug          String    @unique
+  description   String
+  brand         String
+  price         Float
+  originalPrice Float?
+  discount      Int
+  rating        Float     @default(0)
+  reviewCount   Int       @default(0)
+  stock         Int
+  images        String
+  nutrition     String
+  category      Category  @relation(fields: [categoryId], references: [id])
+  categoryId    String
+  createdAt     DateTime  @default(now())
+}
+
+model Order {
+  id            String   @id @default(cuid())
+  productId     String
+  customerPhone String
+  status        String   @default("PENDING")
+  items         String
+  subtotal      Float
+  deliveryFee   Float
+  total         Float
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  merchantRequestId String
+  checkoutRequestId String
+  resultCode        Int
+  resultDesc        String
+  callbackData      String
+  rawPayload        String
+  createdAt         DateTime @default(now())
+}
+
