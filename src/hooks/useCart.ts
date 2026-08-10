@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useMemo, useReducer } from 'react';
+import { createContext, createElement, useContext, useEffect, useMemo, useReducer } from 'react';
 import type { CartState } from '../types/cart';
 import type { Product } from '../types/product';
 
@@ -49,8 +49,24 @@ function cartReducer(state: CartState, action: Action): CartState {
     }
 }
 
+function loadInitialState() {
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('everythingonline.cart') : null;
+    if (!stored) return initialState;
+
+    try {
+        const parsed = JSON.parse(stored) as CartState;
+        return {
+            ...initialState,
+            ...parsed,
+            items: parsed.items ?? [],
+        };
+    } catch {
+        return initialState;
+    }
+}
+
 function useCartState() {
-    const [state, dispatch] = useReducer(cartReducer, initialState);
+    const [state, dispatch] = useReducer(cartReducer, initialState, loadInitialState);
 
     const subtotal = useMemo(
         () => state.items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
@@ -58,6 +74,14 @@ function useCartState() {
     );
 
     const total = useMemo(() => subtotal + state.deliveryFee, [subtotal, state.deliveryFee]);
+
+    useEffect(() => {
+        window.localStorage.setItem('everythingonline.cart', JSON.stringify({
+            ...state,
+            subtotal,
+            total,
+        }));
+    }, [state, subtotal, total]);
 
     return {
         cart: { ...state, subtotal, total },

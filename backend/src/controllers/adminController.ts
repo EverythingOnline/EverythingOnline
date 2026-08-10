@@ -45,8 +45,14 @@ export async function deleteProductHandler(req: Request, res: Response, next: Ne
 export async function listOrders(req: Request, res: Response, next: NextFunction) {
     try {
         const status = req.query.status as string | undefined;
-        const orders = await getOrders(status);
-        res.json({ data: orders });
+        const paymentStatus = req.query.paymentStatus as string | undefined;
+        const paymentMethod = req.query.paymentMethod as string | undefined;
+        const page = Number(req.query.page ?? 1);
+        const pageSize = Math.min(Number(req.query.pageSize ?? 20), 100);
+
+        const filters = { status, paymentStatus, paymentMethod, page, pageSize };
+        const result = await getOrders(filters);
+        res.json({ data: result.orders, meta: { total: result.total, page: result.page, pageSize: result.pageSize } });
     } catch (error) {
         next(error);
     }

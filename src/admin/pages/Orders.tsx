@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import OrderList from '../components/OrderList';
+import OrderDetail from '../components/OrderDetail';
 import { fetchAdminOrders, type AdminOrder } from '../api/admin';
 
 const statuses = ['', 'PENDING', 'PAID', 'DELIVERED'];
@@ -7,6 +8,7 @@ const statuses = ['', 'PENDING', 'PAID', 'DELIVERED'];
 function Orders() {
     const [orders, setOrders] = useState<AdminOrder[]>([]);
     const [statusFilter, setStatusFilter] = useState('');
+    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -82,7 +84,11 @@ function Orders() {
 
             {error && <p className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
 
-            <OrderList orders={orders} isLoading={isLoading} />
+            {selectedOrderId ? (
+                <OrderDetail orderId={selectedOrderId} onClose={() => setSelectedOrderId(null)} />
+            ) : (
+                <OrderList orders={orders} isLoading={isLoading} onSelectOrder={setSelectedOrderId} />
+            )}
         </div>
     );
 }

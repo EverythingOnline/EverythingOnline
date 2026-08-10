@@ -12,7 +12,17 @@ Frontend:
 Backend:
 - cd backend
 - npm install
-- Create a .env file from .env.example and set DATABASE_URL and JWT_SECRET
+- Create a `.env` file from `.env.example` and set:
+  - `DATABASE_URL`
+  - `JWT_SECRET`
+  - `ADMIN_PASSWORD`
+  - `MPESA_CONSUMER_KEY`
+  - `MPESA_CONSUMER_SECRET`
+  - `MPESA_SHORTCODE`
+  - `MPESA_PASSKEY`
+  - `MPESA_CALLBACK_URL`
+  - `FRONTEND_ORIGIN`
+  - `DEV_FRONTEND_ORIGIN`
 - npx prisma migrate dev --name init
 - npm run dev
 

@@ -1,10 +1,10 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import type { PropsWithChildren } from 'react';
 
-const AUTH_KEY = 'admin-authenticated';
+const AUTH_KEY = 'admin-auth-token';
 
 export function isAdminAuthenticated() {
-    return localStorage.getItem(AUTH_KEY) === 'true';
+    return Boolean(localStorage.getItem(AUTH_KEY));
 }
 
 function AdminGuard({ children }: PropsWithChildren) {

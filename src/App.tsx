@@ -3,6 +3,7 @@ import { CartProvider } from './hooks/useCart';
 import Layout from './components/Layout';
 import AboutPage from './pages/AboutPage';
 import CartPage from './pages/CartPage';
+import CheckoutPage from './pages/CheckoutPage';
 import HomePage from './pages/HomePage';
 import ProductsPage from './pages/ProductsPage';
 import ProductPage from './pages/ProductPage';
@@ -24,6 +25,7 @@ function App() {
                 <Route path="/product/:slug" element={<ProductPage />} />
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/cart" element={<CartPage />} />
+                <Route path="/checkout" element={<CheckoutPage />} />
                 <Route path="/checkout-success" element={<CheckoutSuccess />} />
               </Routes>
             </Layout>

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD ?? 'admin123';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
 
 function AdminLogin() {
     const [password, setPassword] = useState('');
@@ -10,14 +10,26 @@ function AdminLogin() {
     const location = useLocation();
     const from = (location.state as any)?.from?.pathname || '/admin';
 
-    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        if (password === ADMIN_PASSWORD) {
-            localStorage.setItem('admin-authenticated', 'true');
+
+        try {
+            const response = await fetch(`${API_URL}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password }),
+            });
+
+            const body = await response.json();
+            if (!response.ok) {
+                throw new Error(body?.error ?? 'Unable to sign in');
+            }
+
+            localStorage.setItem('admin-auth-token', body.token);
             navigate(from, { replace: true });
-            return;
+        } catch (err: any) {
+            setError(err?.message ?? 'Unable to sign in.');
         }
-        setError('Password is incorrect.');
     }
 
     return (

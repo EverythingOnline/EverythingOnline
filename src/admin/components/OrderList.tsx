@@ -3,9 +3,10 @@ import type { AdminOrder } from '../api/admin';
 type OrderListProps = {
     orders: AdminOrder[];
     isLoading: boolean;
+    onSelectOrder: (orderId: string) => void;
 };
 
-function OrderList({ orders, isLoading }: OrderListProps) {
+function OrderList({ orders, isLoading, onSelectOrder }: OrderListProps) {
     if (isLoading) {
         return <p className="rounded-3xl border border-slate-200 bg-white p-6 text-slate-600">Loading orders...</p>;
     }
@@ -34,7 +35,11 @@ function OrderList({ orders, isLoading }: OrderListProps) {
                 <tbody className="divide-y divide-slate-200">
                     {orders.map((order) => (
                         <tr key={order.id} className="hover:bg-slate-50">
-                            <td className="px-6 py-4 text-sm text-slate-800">{order.id}</td>
+                            <td className="px-6 py-4 text-sm text-slate-800">
+                                <button type="button" onClick={() => onSelectOrder(order.id)} className="font-semibold text-slate-900 hover:text-slate-600">
+                                    {order.id}
+                                </button>
+                            </td>
                             <td className="px-6 py-4 text-sm text-slate-600">{order.customerPhone}</td>
                             <td className="px-6 py-4 text-sm text-slate-800">{order.status}</td>
                             <td className="px-6 py-4 text-sm text-slate-800">KES {order.total.toFixed(0)}</td>
