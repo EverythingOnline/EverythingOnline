@@ -39,7 +39,19 @@ async function main() {
         });
     }
 
-    console.log('Seeded database with frontend products.');
+    await prisma.user.upsert({
+        where: { id: 'admin' },
+        update: {},
+        create: {
+            id: 'admin',
+            email: 'admin@example.com',
+            name: 'Administrator',
+            password: 'admin123',
+            role: 'admin',
+        },
+    });
+
+    console.log('Seeded database with frontend products and admin user.');
 }
 
 main()

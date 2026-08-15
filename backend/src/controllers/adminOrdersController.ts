@@ -3,7 +3,7 @@ import { getOrders, getOrderById, updateOrderStatus, recordManualPayment, finali
 
 const allowedStatuses = ['PENDING', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED'];
 const allowedPaymentStatus = ['UNPAID', 'PENDING', 'SUCCESSFUL', 'FAILED', 'TIMED_OUT', 'RECONCILED'];
-const allowedPaymentMethods = ['CASH', 'MPESA', 'CARD', 'OTHER'];
+const allowedPaymentMethods = ['CASH', 'BANK_TRANSFER', 'MPESA_TILL', 'MPESA', 'CARD', 'OTHER'];
 
 function isValidEnum(value: string | undefined, allowed: string[]) {
     return typeof value === 'string' && allowed.includes(value);

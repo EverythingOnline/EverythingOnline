@@ -3,6 +3,12 @@ import { getProductById } from './productsModel.js';
 
 const prisma = new PrismaClient();
 
+async function resolveAdminUserId(adminId?: string) {
+    if (!adminId) return undefined;
+    const user = await prisma.user.findUnique({ where: { id: adminId } });
+    return user ? adminId : undefined;
+}
+
 type NewOrderItem = {
     productId: string;
     quantity: number;
@@ -107,15 +113,20 @@ async function buildOrderItems(items: NewOrderItem[]) {
 }
 
 async function createOrderStatusHistory(orderId: string, fromStatus: string, toStatus: string, adminId?: string, reason?: string) {
-    return prisma.orderStatusHistory.create({
-        data: {
-            orderId,
-            fromStatus,
-            toStatus,
-            changedById: adminId,
-            reason,
-        },
-    });
+    const data: any = {
+        orderId,
+        fromStatus,
+        toStatus,
+        reason,
+    };
+    if (adminId) {
+        const resolvedAdminId = await resolveAdminUserId(adminId);
+        if (resolvedAdminId) {
+            data.changedById = resolvedAdminId;
+        }
+    }
+
+    return prisma.orderStatusHistory.create({ data });
 }
 
 async function getOrderWithRelations(id: string) {
@@ -123,7 +134,7 @@ async function getOrderWithRelations(id: string) {
         where: { id },
         include: {
             items: true,
-            payment: true,
+            payments: true,
         },
     });
 }
@@ -204,7 +215,7 @@ export async function recordManualPayment({ orderId, paymentMethod, amountReceiv
         throw error;
     }
 
-    if (order.paymentStatus === 'SUCCESSFUL' || order.status === 'PAID') {
+    if (order.paymentStatus?.toUpperCase() === 'SUCCESSFUL' || order.status === 'PAID') {
         const error = new Error('Order is already marked as paid') as Error & { status?: number };
         error.status = 400;
         throw error;
@@ -222,58 +233,112 @@ export async function recordManualPayment({ orderId, paymentMethod, amountReceiv
     }
 
     const updatedOrder = await prisma.$transaction(async (tx) => {
-        const payment = await tx.payment.upsert({
-            where: { orderId },
-            create: {
-                orderId,
-                merchantRequestId: 'manual-payment',
-                checkoutRequestId: 'manual-payment',
-                amount: amountReceived,
-                method: paymentMethod,
-                reference: paymentReference,
-                recordedById: adminId,
-                recordedAt: new Date(),
-                isManual: true,
-                resultCode: isFullyPaid ? 0 : 1,
-                resultDesc: isFullyPaid ? 'Manual payment recorded' : 'Partial manual payment recorded',
-                status: paymentStatus,
-                callbackData: JSON.stringify({ manual: true, amountReceived, reference: paymentReference }),
-                rawPayload: JSON.stringify({ manual: true, amountReceived, reference: paymentReference, paymentMethod }),
-            },
-            update: {
-                amount: amountReceived,
-                method: paymentMethod,
-                reference: paymentReference,
-                recordedById: adminId,
-                recordedAt: new Date(),
-                isManual: true,
-                resultCode: isFullyPaid ? 0 : 1,
-                resultDesc: isFullyPaid ? 'Manual payment updated' : 'Partial manual payment updated',
-                status: paymentStatus,
-                callbackData: JSON.stringify({ manual: true, amountReceived, reference: paymentReference }),
-                rawPayload: JSON.stringify({ manual: true, amountReceived, reference: paymentReference, paymentMethod }),
-            },
-        });
+        const resolvedAdminId = await resolveAdminUserId(adminId);
+        const paymentData: any = {
+            orderId,
+            method: paymentMethod,
+            amount: amountReceived,
+            reference: paymentReference,
+            status: paymentStatus,
+            reviewedAt: new Date(),
+            checkoutRequestId: 'manual-payment',
+            rawPayload: JSON.stringify({ manual: true, amountReceived, reference: paymentReference, paymentMethod }),
+        };
+        if (resolvedAdminId) {
+            paymentData.reviewedById = resolvedAdminId;
+        }
+
+        await tx.payment.create({ data: paymentData });
 
         const updated = await tx.order.update({
             where: { id: orderId },
             data: orderData,
-            include: { items: true, payment: true },
+            include: { items: true, payments: true },
         });
 
         if (isFullyPaid && order.status !== 'PAID') {
-            await tx.orderStatusHistory.create({
-                data: {
-                    orderId,
-                    fromStatus: order.status,
-                    toStatus: 'PAID',
-                    changedById: adminId,
-                    reason: 'Manual payment recorded',
-                },
-            });
+            const resolvedAdminId = await resolveAdminUserId(adminId);
+            const historyData: any = {
+                orderId,
+                fromStatus: order.status,
+                toStatus: 'PAID',
+                reason: 'Manual payment recorded',
+            };
+            if (resolvedAdminId) {
+                historyData.changedById = resolvedAdminId;
+            }
+
+            await tx.orderStatusHistory.create({ data: historyData });
         }
 
         return updated;
+    });
+
+    return updatedOrder;
+}
+
+export async function finalizeOrderPayment({ orderId, paymentId, reference }: { orderId: string; paymentId: string; reference?: string }) {
+    const order = await getOrderWithRelations(orderId);
+    if (!order) {
+        const error = new Error('Order not found') as Error & { status?: number };
+        error.status = 404;
+        throw error;
+    }
+
+    if (order.paymentStatus === 'SUCCESSFUL' || order.status === 'PAID') {
+        return order;
+    }
+
+    if (!order.items || order.items.length === 0) {
+        const error = new Error('Order contains no items') as Error & { status?: number };
+        error.status = 400;
+        throw error;
+    }
+
+    const itemsWithProduct = await Promise.all(
+        order.items.map(async (item) => {
+            const product = await getProductById(item.productId);
+            if (!product) {
+                const error = new Error(`Invalid product ID: ${item.productId}`) as Error & { status?: number };
+                error.status = 400;
+                throw error;
+            }
+            return { item, product };
+        }),
+    );
+
+    const insufficientStockItem = itemsWithProduct.find((entry) => entry.product.stock < entry.item.quantity);
+    if (insufficientStockItem) {
+        const error = new Error(`Product ${insufficientStockItem.product.name} is out of stock or does not have enough quantity.`) as Error & { status?: number };
+        error.status = 400;
+        throw error;
+    }
+
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+        await Promise.all(
+            itemsWithProduct.map(({ item }) =>
+                tx.product.update({
+                    where: { id: item.productId },
+                    data: { stock: { decrement: item.quantity } },
+                }),
+            ),
+        );
+
+        if (paymentId) {
+            await tx.payment.update({ where: { id: paymentId }, data: { status: 'CONFIRMED', reference, updatedAt: new Date() } });
+        }
+
+        const orderUpdate = await tx.order.update({
+            where: { id: orderId },
+            data: { status: 'PAID', paymentStatus: 'SUCCESSFUL', paidAt: new Date() },
+            include: { items: true, payments: true },
+        });
+
+        await tx.orderStatusHistory.create({
+            data: { orderId, fromStatus: order.status, toStatus: 'PAID', reason: 'Payment confirmed' },
+        });
+
+        return orderUpdate;
     });
 
     return updatedOrder;
@@ -347,56 +412,42 @@ export async function finalizeOrderCheckout({ orderId, adminId }: FinalizeOrderP
                 paymentStatus: 'SUCCESSFUL',
                 paidAt: new Date(),
             },
-            include: { items: true, payment: true },
+            include: { items: true, payments: true },
         });
 
-        await tx.payment.upsert({
-            where: { orderId },
-            create: {
-                orderId,
-                amount: order.total,
-                method: order.paymentMethod,
-                reference: 'Checkout finalized',
-                recordedAt: new Date(),
-                isManual: true,
-                resultCode: 0,
-                resultDesc: 'Checkout finalized by admin',
-                status: 'SUCCESSFUL',
-                callbackData: JSON.stringify({ manual: true, source: 'admin checkout' }),
-                rawPayload: JSON.stringify({ manual: true, source: 'admin checkout' }),
-            },
-            update: {
-                amount: order.total,
-                method: order.paymentMethod,
-                reference: 'Checkout finalized',
-                recordedAt: new Date(),
-                isManual: true,
-                resultCode: 0,
-                resultDesc: 'Checkout finalized by admin',
-                status: 'SUCCESSFUL',
-                callbackData: JSON.stringify({ manual: true, source: 'admin checkout' }),
-                rawPayload: JSON.stringify({ manual: true, source: 'admin checkout' }),
-            },
-        });
+        const resolvedAdminId = await resolveAdminUserId(adminId);
+        const paymentData: any = {
+            orderId,
+            amount: order.total,
+            method: order.paymentMethod,
+            reference: 'Checkout finalized',
+            status: 'SUCCESSFUL',
+            checkoutRequestId: 'admin-checkout',
+            rawPayload: JSON.stringify({ manual: true, source: 'admin checkout' }),
+            reviewedAt: new Date(),
+        };
+        if (resolvedAdminId) {
+            paymentData.reviewedById = resolvedAdminId;
+        }
 
-        await tx.orderStatusHistory.create({
-            data: {
-                orderId,
-                fromStatus: order.status,
-                toStatus: 'PAID',
-                changedById: adminId,
-                reason: 'Checkout finalized by admin',
-            },
-        });
+        await tx.payment.create({ data: paymentData });
+
+        const historyData: any = {
+            orderId,
+            fromStatus: order.status,
+            toStatus: 'PAID',
+            reason: 'Checkout finalized by admin',
+        };
+        if (resolvedAdminId) {
+            historyData.changedById = resolvedAdminId;
+        }
+
+        await tx.orderStatusHistory.create({ data: historyData });
 
         return orderUpdate;
     });
 
     return updatedOrder;
-}
-
-export async function getOrderById(id: string) {
-    return getOrderWithRelations(id);
 }
 
 export async function updateOrderStatus({ orderId, status, adminId, reason }: OrderUpdateParams) {

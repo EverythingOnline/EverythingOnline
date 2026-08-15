@@ -99,6 +99,16 @@ export async function fetchAdminPayments(): Promise<PaymentRecord[]> {
     return result.data;
 }
 
+export async function approveAdminPayment(id: string): Promise<any> {
+    const result = await adminFetch<{ data: any }>(`/api/admin/payments/${encodeURIComponent(id)}/approve`, { method: 'POST' });
+    return result.data;
+}
+
+export async function rejectAdminPayment(id: string, payload?: { note?: string }): Promise<any> {
+    const result = await adminFetch<{ data: any }>(`/api/admin/payments/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify(payload || {}) });
+    return result.data;
+}
+
 export async function createAdminProduct(product: Partial<Product>): Promise<Product> {
     const result = await adminFetch<{ data: Product }>('/api/admin/products', {
         method: 'POST',

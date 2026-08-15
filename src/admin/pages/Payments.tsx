@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { fetchAdminPayments } from '../api/admin';
+import { fetchAdminPayments, approveAdminPayment, rejectAdminPayment } from '../api/admin';
 import type { PaymentRecord } from '../api/admin';
 
 function paymentStatus(resultCode: number) {
@@ -78,6 +78,7 @@ function Payments() {
                                 <th className="px-6 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Checkout</th>
                                 <th className="px-6 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Result</th>
                                 <th className="px-6 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Date</th>
+                                <th className="px-6 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
@@ -88,6 +89,37 @@ function Payments() {
                                     <td className="px-6 py-4 text-sm text-slate-800">{payment.checkoutRequestId}</td>
                                     <td className="px-6 py-4 text-sm text-slate-800">{paymentStatus(payment.resultCode)} ({payment.resultDesc})</td>
                                     <td className="px-6 py-4 text-sm text-slate-600">{new Date(payment.createdAt).toLocaleString()}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600">
+                                        <div className="flex gap-2">
+                                            <button
+                                                className="rounded-md bg-emerald-600 px-3 py-1 text-white text-sm"
+                                                onClick={async () => {
+                                                    try {
+                                                        await approveAdminPayment(payment.id);
+                                                        loadPayments();
+                                                    } catch (e: any) {
+                                                        alert('Approve failed: ' + e.message);
+                                                    }
+                                                }}
+                                            >
+                                                Approve
+                                            </button>
+                                            <button
+                                                className="rounded-md bg-rose-600 px-3 py-1 text-white text-sm"
+                                                onClick={async () => {
+                                                    const note = prompt('Rejection note (optional)') || undefined;
+                                                    try {
+                                                        await rejectAdminPayment(payment.id, { note });
+                                                        loadPayments();
+                                                    } catch (e: any) {
+                                                        alert('Reject failed: ' + e.message);
+                                                    }
+                                                }}
+                                            >
+                                                Reject
+                                            </button>
+                                        </div>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>

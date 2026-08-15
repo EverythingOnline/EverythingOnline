@@ -8,7 +8,7 @@ import { fetchProductBySlug, fetchProducts } from '../services/productService';
 function ProductPage() {
     const { slug } = useParams();
     const navigate = useNavigate();
-    const { addItem } = useCart();
+    const { addItem, clearCart } = useCart();
     const [product, setProduct] = useState<Product | undefined>();
     const [related, setRelated] = useState<Product[]>([]);
 
@@ -34,8 +34,9 @@ function ProductPage() {
     };
 
     const handleBuyNow = () => {
+        clearCart();
         addItem(product);
-        navigate('/cart');
+        navigate('/checkout', { state: { fromBuyNow: true } });
     };
 
     return (

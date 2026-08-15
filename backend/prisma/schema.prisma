@@ -8,31 +8,32 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  password  String
-  role      String   @default("CUSTOMER")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  addresses Address[]
-  orders    Order[]
-  vendors   Vendor[]
-  actions   AdminAction[] @relation("AdminActions")
-  statusChanges OrderStatusHistory[]
+  id               String               @id @default(cuid())
+  email            String               @unique
+  name             String?
+  password         String
+  role             String               @default("CUSTOMER")
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  addresses        Address[]
+  orders           Order[]
+  vendors          Vendor[]
+  actions          AdminAction[]        @relation("AdminActions")
+  statusChanges    OrderStatusHistory[]
+  reviewedPayments Payment[]
 }
 
 model Address {
-  id        String  @id @default(cuid())
-  user      User    @relation(fields: [userId], references: [id])
-  userId    String
-  line1     String
-  line2     String?
-  city      String
-  postcode  String?
-  country   String
-  createdAt DateTime @default(now())
-  ordersShipping Order[] @relation("ShippingAddress")
+  id             String   @id @default(cuid())
+  user           User     @relation(fields: [userId], references: [id])
+  userId         String
+  line1          String
+  line2          String?
+  city           String
+  postcode       String?
+  country        String
+  createdAt      DateTime @default(now())
+  ordersShipping Order[]  @relation("ShippingAddress")
 }
 
 model Category {
@@ -48,13 +49,13 @@ model Category {
 }
 
 model Vendor {
-  id        String      @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  owner     User        @relation(fields: [ownerId], references: [id])
+  owner     User      @relation(fields: [ownerId], references: [id])
   ownerId   String
-  status    String       @default("PENDING")
+  status    String    @default("PENDING")
   products  Product[]
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 }
 
 model Product {
@@ -83,91 +84,88 @@ model Product {
 }
 
 model ProductImage {
-  id        String   @id @default(cuid())
-  product   Product  @relation(fields: [productId], references: [id])
+  id        String  @id @default(cuid())
+  product   Product @relation(fields: [productId], references: [id])
   productId String
   url       String
   altText   String?
-  isPrimary Boolean  @default(false)
-  position  Int      @default(0)
+  isPrimary Boolean @default(false)
+  position  Int     @default(0)
 }
 
 model Order {
-  id                 String             @id @default(cuid())
-  customerPhone      String
-  status             String             @default("PENDING")
-  paymentStatus      String             @default("UNPAID")
-  paymentMethod      String             @default("CASH")
-  paidAt             DateTime?
-  confirmedBy        String?
-  shippingAddress    Address?           @relation("ShippingAddress", fields: [shippingAddressId], references: [id])
-  shippingAddressId  String?
-  subtotal           Float
-  deliveryFee        Float
-  total              Float
-  userId             String?
-  user               User?              @relation(fields: [userId], references: [id])
-  items              OrderItem[]
-  payment            Payment?
-  statusHistory      OrderStatusHistory[]
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  id                String               @id @default(cuid())
+  customerPhone     String
+  status            String               @default("PENDING")
+  paymentStatus     String               @default("UNPAID")
+  paymentMethod     String               @default("CASH")
+  paidAt            DateTime?
+  confirmedBy       String?
+  shippingAddress   Address?             @relation("ShippingAddress", fields: [shippingAddressId], references: [id])
+  shippingAddressId String?
+  subtotal          Float
+  deliveryFee       Float
+  total             Float
+  userId            String?
+  user              User?                @relation(fields: [userId], references: [id])
+  items             OrderItem[]
+  payments          Payment[]
+  statusHistory     OrderStatusHistory[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 }
 
 model OrderItem {
-  id         String  @id @default(cuid())
-  order      Order   @relation(fields: [orderId], references: [id])
-  orderId    String
-  product    Product @relation(fields: [productId], references: [id])
-  productId  String
-  name       String
-  sku        String?
-  quantity   Int
-  unitPrice  Float
-  total      Float
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  name      String
+  sku       String?
+  quantity  Int
+  unitPrice Float
+  total     Float
+  createdAt DateTime @default(now())
 }
 
 model OrderStatusHistory {
-  id          String      @id @default(cuid())
-  order       Order       @relation(fields: [orderId], references: [id])
+  id          String   @id @default(cuid())
+  order       Order    @relation(fields: [orderId], references: [id])
   orderId     String
   fromStatus  String
   toStatus    String
-  changedBy   User?       @relation(fields: [changedById], references: [id])
+  changedBy   User?    @relation(fields: [changedById], references: [id])
   changedById String?
   reason      String?
-  createdAt   DateTime    @default(now())
+  createdAt   DateTime @default(now())
 }
-
 model Payment {
   id                String    @id @default(cuid())
-  order             Order?    @relation(fields: [orderId], references: [id])
-  orderId           String?   @unique
-  merchantRequestId String?
-  checkoutRequestId String?
-  amount            Float?
-  method            String?
-  reference         String?
-  recordedBy       User?     @relation(fields: [recordedById], references: [id])
-  recordedById     String?
-  recordedAt       DateTime?
-  isManual         Boolean   @default(false)
-  resultCode        Int
-  resultDesc        String
+  order             Order     @relation(fields: [orderId], references: [id])
+  orderId           String
+  method            String
   status            String    @default("PENDING")
+  amount            Float
+  reference         String?
+  checkoutRequestId String?
+  merchantRequestId String?
   callbackData      String?
   rawPayload        String?
+  reviewedBy        User?     @relation(fields: [reviewedById], references: [id])
+  reviewedById      String?
+  reviewedAt        DateTime?
   createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }
 
 model AdminAction {
-  id         String    @id @default(cuid())
-  admin      User      @relation("AdminActions", fields: [adminId], references: [id])
+  id         String   @id @default(cuid())
+  admin      User     @relation("AdminActions", fields: [adminId], references: [id])
   adminId    String
   actionType String
   entityType String
   entityId   String
   metadata   String?
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime @default(now())
 }

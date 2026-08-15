@@ -58,3 +58,29 @@ export async function createBulkOrders(payload: BulkOrderPayload) {
         throw err;
     }
 }
+
+export async function initiateMpesaCheckout({ orderId, phoneNumber, amount }: { orderId: string; phoneNumber: string; amount: number }) {
+    const response = await fetch(`${API_URL}/api/checkout/mpesa/initiate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, phoneNumber, amount }),
+    });
+    if (!response.ok) throw new Error('Failed to initiate M-Pesa checkout');
+    return response.json();
+}
+
+export async function getMpesaPaymentStatus(checkoutRequestId: string) {
+    const response = await fetch(`${API_URL}/api/checkout/status/${encodeURIComponent(checkoutRequestId)}`);
+    if (!response.ok) throw new Error('Unable to fetch payment status');
+    return response.json();
+}
+
+export async function submitManualPayment({ orderId, method, reference, amount }: { orderId: string; method: string; reference?: string; amount?: number }) {
+    const response = await fetch(`${API_URL}/api/checkout/manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, method, reference, amount }),
+    });
+    if (!response.ok) throw new Error('Failed to submit manual payment');
+    return response.json();
+}

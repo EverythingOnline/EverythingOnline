@@ -7,6 +7,7 @@ import {
     listProducts,
     updateProductHandler,
 } from '../controllers/adminController.js';
+import { listPendingPayments, approvePayment, rejectPayment } from '../controllers/adminPaymentsController.js';
 import requireAdminAuth from '../middleware/adminAuth.js';
 
 const router = Router();
@@ -19,5 +20,8 @@ router.put('/products/:id', updateProductHandler);
 router.delete('/products/:id', deleteProductHandler);
 router.get('/orders', listOrders);
 router.get('/payments', listPayments);
+router.get('/payments/pending', listPendingPayments);
+router.post('/payments/:id/approve', approvePayment);
+router.post('/payments/:id/reject', rejectPayment);
 
 export default router;

@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { createNewProduct, deleteProduct, getAllProducts, updateProduct } from '../models/productsModel.js';
 import { getOrders } from '../models/ordersModel.js';
-import { getPayments } from '../models/paymentsModel.js';
+import * as paymentsModel from '../models/paymentsModel.js';
 
 export async function listProducts(req: Request, res: Response, next: NextFunction) {
     try {
@@ -60,7 +60,7 @@ export async function listOrders(req: Request, res: Response, next: NextFunction
 
 export async function listPayments(req: Request, res: Response, next: NextFunction) {
     try {
-        const payments = await getPayments();
+        const payments = await paymentsModel.getPendingPayments();
         res.json({ data: payments });
     } catch (error) {
         next(error);
