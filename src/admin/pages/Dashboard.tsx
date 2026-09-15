@@ -35,7 +35,7 @@ function Dashboard() {
                 <StatCard label="Orders today" value={isLoading ? 'Loading…' : totals.totalOrders} />
                 <StatCard label="Pending orders" value={isLoading ? 'Loading…' : totals.pending} />
                 <StatCard label="Delivered" value={isLoading ? 'Loading…' : totals.delivered} />
-                <StatCard label="Low stock" value={isLoading ? 'Loading…' : totals.lowStockCount} accent="bg-rose-50" />
+                <StatCard label="Low stock" value={isLoading ? 'Loading…' : totals.lowStockCount} valueClassName="text-rose-600" />
             </div>
         </div>
     );

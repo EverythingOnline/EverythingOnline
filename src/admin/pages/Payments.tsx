@@ -28,16 +28,14 @@ function Payments() {
         isMounted.current = true;
         loadPayments();
         const id = setInterval(loadPayments, 5000);
-        const onPayment = (e: Event) => {
-            const detail = (e as CustomEvent).detail;
+        const onPayment = () => {
             loadPayments();
-            window.dispatchEvent(new CustomEvent('admin:payments.notified', { detail }));
         };
-        window.addEventListener('admin:payment.received', onPayment as EventListener);
+        window.addEventListener('admin:payments.updated', onPayment as EventListener);
         return () => {
             isMounted.current = false;
             clearInterval(id);
-            window.removeEventListener('admin:payment.received', onPayment as EventListener);
+            window.removeEventListener('admin:payments.updated', onPayment as EventListener);
         };
     }, [loadPayments]);
 

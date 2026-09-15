@@ -1,94 +1,118 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
-import OrderList from '../components/OrderList';
-import OrderDetail from '../components/OrderDetail';
-import { fetchAdminOrders, type AdminOrder } from '../api/admin';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { fetchAdminOrders, updateAdminOrderStatus, type AdminOrder } from '../api/admin';
 
-const statuses = ['', 'PENDING', 'PAID', 'DELIVERED'];
+const statuses = ['PENDING', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED'];
+
+const statusStyles: Record<string, string> = {
+    PENDING: 'border-yellow-200 bg-yellow-50 text-yellow-700',
+    PAID: 'border-blue-200 bg-blue-50 text-blue-700',
+    PROCESSING: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+    SHIPPED: 'border-sky-200 bg-sky-50 text-sky-700',
+    DELIVERED: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    CANCELLED: 'border-rose-200 bg-rose-50 text-rose-700',
+    REFUNDED: 'border-slate-200 bg-slate-100 text-slate-700',
+};
 
 function Orders() {
     const [orders, setOrders] = useState<AdminOrder[]>([]);
-    const [statusFilter, setStatusFilter] = useState('');
-    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const isMounted = useRef(true);
-    const loadOrders = useCallback(async () => {
+    const loadOrders = async () => {
         setIsLoading(true);
         try {
-            const data = await fetchAdminOrders(statusFilter);
-            if (isMounted.current) setOrders(data);
+            const data = await fetchAdminOrders();
+            setOrders(data);
+            setError(null);
         } catch (err: any) {
-            if (isMounted.current) setError(err.message);
+            setError(err.message);
         } finally {
-            if (isMounted.current) setIsLoading(false);
+            setIsLoading(false);
         }
-    }, [statusFilter]);
+    };
 
     useEffect(() => {
-        isMounted.current = true;
         loadOrders();
-        const id = setInterval(loadOrders, 5000);
-        const onOrder = (e: Event) => {
-            const detail = (e as CustomEvent).detail;
-            loadOrders();
-            // optionally show a brief UI flash or badge clear using DOM event
-            window.dispatchEvent(new CustomEvent('admin:orders.notified', { detail }));
-        };
-        const onOrderBulk = (e: Event) => {
-            const detail = (e as CustomEvent).detail;
-            loadOrders();
-            window.dispatchEvent(new CustomEvent('admin:orders.notified.bulk', { detail }));
-        };
-        window.addEventListener('admin:order.created', onOrder as EventListener);
-        window.addEventListener('admin:order.created.bulk', onOrderBulk as EventListener);
-        return () => {
-            isMounted.current = false;
-            clearInterval(id);
-            window.removeEventListener('admin:order.created', onOrder as EventListener);
-            window.removeEventListener('admin:order.created.bulk', onOrderBulk as EventListener);
-        };
-    }, [loadOrders]);
+    }, []);
+
+    const handleStatusChange = async (orderId: string, nextStatus: string) => {
+        try {
+            const updated = await updateAdminOrderStatus(orderId, nextStatus);
+            setOrders((current) => current.map((order) => (order.id === orderId ? updated : order)));
+        } catch (err: any) {
+            setError(err.message);
+        }
+    };
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="text-3xl font-semibold text-slate-900">Orders</h1>
-                    <p className="mt-2 text-sm text-slate-500">View store orders and filter by payment status.</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                    <label className="text-sm font-medium text-slate-700">
-                        Status
-                        <select
-                            value={statusFilter}
-                            onChange={(event) => setStatusFilter(event.target.value)}
-                            className="mt-2 block rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900"
-                        >
-                            {statuses.map((status) => (
-                                <option key={status} value={status}>
-                                    {status || 'All'}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                    <button
-                        type="button"
-                        onClick={() => loadOrders()}
-                        className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700"
-                    >
-                        Refresh
-                    </button>
-                </div>
+            <div className="flex items-center justify-between gap-4">
+                <h1 className="text-3xl font-bold text-slate-900">Orders</h1>
             </div>
 
-            {error && <p className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+            {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
 
-            {selectedOrderId ? (
-                <OrderDetail orderId={selectedOrderId} onClose={() => setSelectedOrderId(null)} />
-            ) : (
-                <OrderList orders={orders} isLoading={isLoading} onSelectOrder={setSelectedOrderId} />
-            )}
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/60">
+                <table className="min-w-full text-left">
+                    <thead className="bg-slate-50">
+                        <tr>
+                            <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Order ID</th>
+                            <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Customer</th>
+                            <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Items</th>
+                            <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Total</th>
+                            <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Status</th>
+                            <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Date</th>
+                            <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 bg-white">
+                        {isLoading ? (
+                            <tr>
+                                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                                    Loading orders...
+                                </td>
+                            </tr>
+                        ) : orders.length === 0 ? (
+                            <tr>
+                                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                                    No orders yet.
+                                </td>
+                            </tr>
+                        ) : (
+                            orders.map((order) => (
+                                <tr key={order.id} className="hover:bg-slate-50/80">
+                                    <td className="px-4 py-4 text-sm font-semibold text-blue-600">#{order.id.slice(0, 8)}</td>
+                                    <td className="px-4 py-4 text-sm text-slate-700">{order.customerPhone}</td>
+                                    <td className="px-4 py-4 text-sm text-slate-700">{Array.isArray(order.items) ? order.items.length : 1}</td>
+                                    <td className="px-4 py-4 text-sm font-bold text-emerald-600">KES {Number(order.total ?? 0).toLocaleString()}</td>
+                                    <td className="px-4 py-4 text-sm">
+                                        <select
+                                            value={order.status}
+                                            onChange={(event) => handleStatusChange(order.id, event.target.value)}
+                                            className={`rounded-full border px-2.5 py-1.5 text-xs font-semibold outline-none ${statusStyles[order.status] ?? 'border-slate-200 bg-slate-50 text-slate-700'}`}
+                                        >
+                                            {statuses.map((status) => (
+                                                <option key={status} value={status}>
+                                                    {status}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </td>
+                                    <td className="px-4 py-4 text-sm text-slate-500">
+                                        {new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </td>
+                                    <td className="px-4 py-4 text-sm">
+                                        <Link to="/admin/orders" className="font-medium text-blue-600 hover:text-blue-700">
+                                            View
+                                        </Link>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }

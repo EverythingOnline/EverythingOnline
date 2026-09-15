@@ -277,7 +277,7 @@ export async function recordManualPayment({ orderId, paymentMethod, amountReceiv
     return updatedOrder;
 }
 
-export async function finalizeOrderPayment({ orderId, paymentId, reference }: { orderId: string; paymentId: string; reference?: string }) {
+export async function finalizeOrderPayment({ orderId, paymentId, reference, resultCode, resultDesc }: { orderId: string; paymentId: string; reference?: string; resultCode?: number; resultDesc?: string }) {
     const order = await getOrderWithRelations(orderId);
     if (!order) {
         const error = new Error('Order not found') as Error & { status?: number };
@@ -325,7 +325,10 @@ export async function finalizeOrderPayment({ orderId, paymentId, reference }: { 
         );
 
         if (paymentId) {
-            await tx.payment.update({ where: { id: paymentId }, data: { status: 'CONFIRMED', reference, updatedAt: new Date() } });
+            const paymentUpdate: any = { status: 'CONFIRMED', reference, updatedAt: new Date() };
+            if (resultCode !== undefined) paymentUpdate.resultCode = resultCode;
+            if (resultDesc !== undefined) paymentUpdate.resultDesc = resultDesc;
+            await tx.payment.update({ where: { id: paymentId }, data: paymentUpdate });
         }
 
         const orderUpdate = await tx.order.update({

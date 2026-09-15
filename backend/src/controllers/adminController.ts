@@ -60,7 +60,7 @@ export async function listOrders(req: Request, res: Response, next: NextFunction
 
 export async function listPayments(req: Request, res: Response, next: NextFunction) {
     try {
-        const payments = await paymentsModel.getPendingPayments();
+        const payments = await paymentsModel.getPayments();
         res.json({ data: payments });
     } catch (error) {
         next(error);

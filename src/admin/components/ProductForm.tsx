@@ -52,11 +52,11 @@ function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
                 brand: product.brand,
                 category: product.category,
                 price: String(product.price),
-                originalPrice: String(product.originalPrice),
-                discount: String(product.discount),
-                rating: String(product.rating),
-                reviewCount: String(product.reviewCount),
-                stock: String(product.stock),
+                originalPrice: String(product.originalPrice ?? product.price),
+                discount: String(product.discount ?? 0),
+                rating: String(product.rating ?? 0),
+                reviewCount: String(product.reviewCount ?? 0),
+                stock: String(product.stock ?? 0),
                 description: product.description,
                 images: product.images.join(','),
                 nutrition: JSON.stringify(product.nutrition),
@@ -96,20 +96,20 @@ function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
             brand: state.brand,
             category: state.category,
             price: Number(state.price),
-            originalPrice: Number(state.originalPrice),
-            discount: Number(state.discount),
-            rating: Number(state.rating),
-            reviewCount: Number(state.reviewCount),
-            stock: Number(state.stock),
+            originalPrice: Number(state.originalPrice || state.price),
+            discount: Number(state.discount || 0),
+            rating: Number(state.rating || 0),
+            reviewCount: Number(state.reviewCount || 0),
+            stock: Number(state.stock || 0),
             description: state.description,
-            images: state.images.split(',').map((item) => item.trim()),
+            images: state.images.split(',').map((item) => item.trim()).filter(Boolean),
             nutrition: JSON.parse(state.nutrition),
         });
     }
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="grid gap-6 md:grid-cols-2">
+        <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-200/60">
+            <div className="grid gap-5 md:grid-cols-2">
                 {[
                     { label: 'Name', name: 'name', type: 'text' },
                     { label: 'Slug', name: 'slug', type: 'text' },
@@ -128,7 +128,7 @@ function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
                             type={type}
                             value={state[name as keyof FormState]}
                             onChange={(event) => setState((prev) => ({ ...prev, [name]: event.target.value }))}
-                            className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
+                            className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
                         />
                         {errors[name as keyof FormState] && (
                             <p className="mt-2 text-xs text-rose-600">{errors[name as keyof FormState]}</p>
@@ -137,44 +137,46 @@ function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
                 ))}
             </div>
 
-            <label className="block text-sm font-medium text-slate-700">
-                <span>Description</span>
-                <textarea
-                    value={state.description}
-                    onChange={(event) => setState((prev) => ({ ...prev, description: event.target.value }))}
-                    className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
-                    rows={4}
-                />
-                {errors.description && <p className="mt-2 text-xs text-rose-600">{errors.description}</p>}
-            </label>
+            <div className="mt-5 space-y-5">
+                <label className="block text-sm font-medium text-slate-700">
+                    <span>Description</span>
+                    <textarea
+                        value={state.description}
+                        onChange={(event) => setState((prev) => ({ ...prev, description: event.target.value }))}
+                        className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
+                        rows={4}
+                    />
+                    {errors.description && <p className="mt-2 text-xs text-rose-600">{errors.description}</p>}
+                </label>
 
-            <label className="block text-sm font-medium text-slate-700">
-                <span>Images (comma-separated URLs)</span>
-                <input
-                    type="text"
-                    value={state.images}
-                    onChange={(event) => setState((prev) => ({ ...prev, images: event.target.value }))}
-                    className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
-                />
-                {errors.images && <p className="mt-2 text-xs text-rose-600">{errors.images}</p>}
-            </label>
+                <label className="block text-sm font-medium text-slate-700">
+                    <span>Images (comma-separated URLs)</span>
+                    <input
+                        type="text"
+                        value={state.images}
+                        onChange={(event) => setState((prev) => ({ ...prev, images: event.target.value }))}
+                        className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
+                    />
+                    {errors.images && <p className="mt-2 text-xs text-rose-600">{errors.images}</p>}
+                </label>
 
-            <label className="block text-sm font-medium text-slate-700">
-                <span>Nutrition JSON</span>
-                <textarea
-                    value={state.nutrition}
-                    onChange={(event) => setState((prev) => ({ ...prev, nutrition: event.target.value }))}
-                    className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
-                    rows={4}
-                />
-                {errors.nutrition && <p className="mt-2 text-xs text-rose-600">{errors.nutrition}</p>}
-            </label>
+                <label className="block text-sm font-medium text-slate-700">
+                    <span>Nutrition JSON</span>
+                    <textarea
+                        value={state.nutrition}
+                        onChange={(event) => setState((prev) => ({ ...prev, nutrition: event.target.value }))}
+                        className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
+                        rows={4}
+                    />
+                    {errors.nutrition && <p className="mt-2 text-xs text-rose-600">{errors.nutrition}</p>}
+                </label>
+            </div>
 
-            <div className="flex flex-wrap gap-3 pt-2">
-                <button type="submit" className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
+            <div className="mt-6 flex flex-wrap gap-3 pt-2">
+                <button type="submit" className="rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 transition hover:bg-emerald-600">
                     Save product
                 </button>
-                <button type="button" onClick={onCancel} className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm text-slate-700 transition hover:bg-slate-50">
+                <button type="button" onClick={onCancel} className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
                     Cancel
                 </button>
             </div>

@@ -20,7 +20,7 @@ export async function approvePayment(req: Request, res: Response, next: NextFunc
 
         const payment = await paymentsModel.approvePayment(String(id), String(adminId));
         // finalize order
-        await finalizeOrderPayment({ orderId: payment.orderId, paymentId: payment.id, reference: payment.reference ?? undefined });
+        await finalizeOrderPayment({ orderId: payment.orderId, paymentId: payment.id, reference: payment.reference ?? undefined, resultCode: payment.resultCode ?? undefined, resultDesc: payment.resultDesc ?? undefined });
 
         // emit socket event if available
         try { const io = req.app.get('io'); if (io) io.emit('payment:approved', { paymentId: payment.id, orderId: payment.orderId }); } catch (e) { }

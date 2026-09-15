@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import fetch from 'node-fetch';
 import { createMpesaPayment, markPaymentExpired, findPaymentByCheckoutRequestId, createManualPayment } from '../models/paymentsModel.js';
-import { finalizeOrderPayment } from '../models/ordersModel.js';
+import { finalizeOrderPayment, getOrderById } from '../models/ordersModel.js';
 
 const MPESA_BASE_URL = process.env.MPESA_ENVIRONMENT === 'production'
     ? 'https://api.safaricom.co.ke'
@@ -12,14 +12,34 @@ export async function initiateMpesa(req: Request, res: Response, next: NextFunct
         const { orderId, phoneNumber } = req.body;
         if (!orderId || !phoneNumber) return res.status(400).json({ error: 'orderId and phoneNumber required' });
 
+        const order = await getOrderById(String(orderId));
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found. Create the order before starting M-Pesa checkout.' });
+        }
+
         const consumerKey = process.env.MPESA_CONSUMER_KEY;
         const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
         const shortcode = process.env.MPESA_SHORTCODE;
         const passkey = process.env.MPESA_PASSKEY;
         const callbackUrl = process.env.MPESA_CALLBACK_URL;
+        const mockMode = process.env.MPESA_MOCK_MODE !== 'false';
+
+        const amount = Number(req.body.amount ?? 0);
 
         if (!consumerKey || !consumerSecret || !shortcode || !passkey || !callbackUrl) {
-            return res.status(500).json({ error: 'Missing M-Pesa credentials in environment' });
+            if (!mockMode) {
+                return res.status(500).json({ error: 'Missing M-Pesa credentials in environment' });
+            }
+
+            const checkoutRequestId = `MOCK-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            await createMpesaPayment({ orderId, amount, checkoutRequestId, rawPayload: JSON.stringify({ mock: true, phoneNumber, amount }) });
+            return res.status(200).json({
+                CheckoutRequestID: checkoutRequestId,
+                MerchantRequestID: `MERCHANT-${Date.now()}`,
+                ResponseCode: '0',
+                ResponseDescription: 'Mock STK push generated for local development.',
+                mockMode: true,
+            });
         }
 
         const authResponse = await fetch(`${MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials`, {
@@ -32,9 +52,6 @@ export async function initiateMpesa(req: Request, res: Response, next: NextFunct
 
         const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
         const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
-
-        // For simplicity use order amount lookup in paymentsModel (or ordersModel could provide)
-        const amount = Number(req.body.amount ?? 0);
 
         const stkRequest = {
             BusinessShortCode: shortcode,
@@ -61,7 +78,6 @@ export async function initiateMpesa(req: Request, res: Response, next: NextFunct
 
         const responseData = await response.json();
 
-        // create a payment record with PENDING
         if (responseData && responseData.CheckoutRequestID) {
             await createMpesaPayment({ orderId, amount, checkoutRequestId: responseData.CheckoutRequestID });
         }
@@ -76,32 +92,41 @@ export async function mpesaCallback(req: Request, res: Response, next: NextFunct
     try {
         const body = req.body;
         const stkCallback = body?.Body?.stkCallback;
-        if (!stkCallback) return res.status(400).json({ error: 'Invalid payload' });
-
-        const checkoutRequestId = String(stkCallback.CheckoutRequestID);
-        const payment = await findPaymentByCheckoutRequestId(checkoutRequestId as any);
-        if (!payment) {
-            // create a record to keep raw payload for inspection
-            await createMpesaPayment({ orderId: stkCallback.MerchantRequestID ?? 'unknown', amount: 0, checkoutRequestId, rawPayload: JSON.stringify(body) });
-            return res.json({ result: 'ok' });
+        if (!stkCallback) {
+            return res.status(400).json({ error: 'Invalid payload' });
         }
 
-        // idempotent handling
+        const checkoutRequestId = String(stkCallback.CheckoutRequestID ?? '');
+        if (!checkoutRequestId) {
+            return res.status(400).json({ error: 'Missing checkoutRequestId in callback payload' });
+        }
+
+        const payment = await findPaymentByCheckoutRequestId(checkoutRequestId as any);
+        if (!payment) {
+            const details = {
+                checkoutRequestId,
+                merchantRequestId: stkCallback.MerchantRequestID ?? null,
+                resultCode: stkCallback.ResultCode ?? null,
+                resultDesc: stkCallback.ResultDesc ?? null,
+                callbackMetadata: stkCallback.CallbackMetadata ?? null,
+            };
+            // eslint-disable-next-line no-console
+            console.warn('Received M-Pesa callback without matching payment record:', details);
+            return res.json({ result: 'ignored', reason: 'unknown checkoutRequestId' });
+        }
+
         if (payment.status === 'CONFIRMED' || payment.status === 'FAILED') {
             return res.json({ result: 'ignored' });
         }
 
         if (stkCallback.ResultCode === 0) {
-            // success
             const receipt = (stkCallback.CallbackMetadata?.Item || []).find((i: any) => i.Name === 'MpesaReceiptNumber')?.Value ?? null;
-            const updated = await finalizeOrderPayment({ orderId: payment.orderId, paymentId: payment.id, reference: receipt });
-            // emit socket
+            await finalizeOrderPayment({ orderId: payment.orderId, paymentId: payment.id, reference: receipt, resultCode: stkCallback.ResultCode, resultDesc: stkCallback.ResultDesc });
             try { const io = req.app.get('io'); if (io) io.emit('payment:confirmed', { orderId: payment.orderId, paymentId: payment.id }); } catch (e) { }
             return res.json({ result: 'confirmed' });
         }
 
-        // failed
-        await markPaymentExpired(payment.id, 'FAILED');
+        await markPaymentExpired(payment.id, 'FAILED', stkCallback.ResultCode, stkCallback.ResultDesc);
         return res.json({ result: 'failed' });
     } catch (err) {
         next(err);

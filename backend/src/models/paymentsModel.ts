@@ -25,8 +25,11 @@ export async function findPaymentByCheckoutRequestId(checkoutRequestId: string) 
     return prisma.payment.findUnique({ where: { checkoutRequestId } as any });
 }
 
-export async function markPaymentExpired(paymentId: string, status: string) {
-    return prisma.payment.update({ where: { id: paymentId }, data: { status } });
+export async function markPaymentExpired(paymentId: string, status: string, resultCode?: number, resultDesc?: string) {
+    const data: any = { status };
+    if (resultCode !== undefined) data.resultCode = resultCode;
+    if (resultDesc !== undefined) data.resultDesc = resultDesc;
+    return prisma.payment.update({ where: { id: paymentId }, data });
 }
 
 export async function createManualPayment({ orderId, method, reference, amount }: { orderId: string; method: string; reference?: string; amount: number }) {

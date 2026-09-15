@@ -29,15 +29,22 @@ function getAdminToken() {
     return localStorage.getItem('admin-auth-token');
 }
 
-async function adminFetch<T>(path: string, options?: RequestInit): Promise<T> {
+export function getAdminAuthHeaders(extraHeaders?: Record<string, string>): Record<string, string> {
     const token = getAdminToken();
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        ...(extraHeaders ?? {}),
     };
 
     if (token) {
         headers.Authorization = `Bearer ${token}`;
     }
+
+    return headers;
+}
+
+async function adminFetch<T>(path: string, options?: RequestInit): Promise<T> {
+    const headers = getAdminAuthHeaders();
 
     const response = await fetch(`${API_URL}${path}`, {
         headers,
@@ -106,6 +113,14 @@ export async function approveAdminPayment(id: string): Promise<any> {
 
 export async function rejectAdminPayment(id: string, payload?: { note?: string }): Promise<any> {
     const result = await adminFetch<{ data: any }>(`/api/admin/payments/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify(payload || {}) });
+    return result.data;
+}
+
+export async function updateAdminOrderStatus(id: string, status: string): Promise<AdminOrder> {
+    const result = await adminFetch<{ data: AdminOrder }>(`/api/admin/orders/${encodeURIComponent(id)}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+    });
     return result.data;
 }
 

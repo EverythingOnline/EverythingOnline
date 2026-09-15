@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getAdminAuthHeaders } from '../api/admin';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
 
@@ -22,18 +23,24 @@ export default function PendingPayments() {
 
     async function fetchPayments() {
         const q = filter ? `?method=${encodeURIComponent(filter)}` : '';
-        const res = await fetch(`${API_URL}/api/admin/payments/pending${q}`, { credentials: 'include' });
+        const headers = getAdminAuthHeaders();
+
+        const res = await fetch(`${API_URL}/api/admin/payments/pending${q}`, { headers });
         const data = await res.json();
         setPayments(data.data || []);
     }
 
     async function approve(id: string) {
-        await fetch(`${API_URL}/api/admin/payments/${id}/approve`, { method: 'POST', credentials: 'include' });
+        const headers = getAdminAuthHeaders();
+
+        await fetch(`${API_URL}/api/admin/payments/${id}/approve`, { method: 'POST', headers });
         fetchPayments();
     }
 
     async function rejectPayment(id: string) {
-        await fetch(`${API_URL}/api/admin/payments/${id}/reject`, { method: 'POST', credentials: 'include' });
+        const headers = getAdminAuthHeaders();
+
+        await fetch(`${API_URL}/api/admin/payments/${id}/reject`, { method: 'POST', headers });
         fetchPayments();
     }
 

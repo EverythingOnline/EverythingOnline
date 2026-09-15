@@ -1,10 +1,11 @@
 import { Routes, Route } from 'react-router-dom';
 import AdminLayout from './AdminLayout';
 import AdminGuard from './AdminGuard';
-import Dashboard from '../pages/Dashboard';
+import Overview from '../pages/Overview';
 import Products from '../pages/Products';
 import Orders from '../pages/Orders';
 import Payments from '../pages/Payments';
+import Analytics from '../pages/Analytics';
 import AdminLogin from '../pages/Login';
 
 function AdminRoutes() {
@@ -18,10 +19,11 @@ function AdminRoutes() {
                     </AdminGuard>
                 }
             >
-                <Route index element={<Dashboard />} />
+                <Route index element={<Overview />} />
                 <Route path="products" element={<Products />} />
                 <Route path="orders" element={<Orders />} />
                 <Route path="payments" element={<Payments />} />
+                <Route path="analytics" element={<Analytics />} />
             </Route>
         </Routes>
     );

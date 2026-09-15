@@ -148,8 +148,10 @@ model Payment {
   status            String    @default("PENDING")
   amount            Float
   reference         String?
-  checkoutRequestId String?
+  checkoutRequestId String?   @unique
   merchantRequestId String?
+  resultCode        Int?
+  resultDesc        String?
   callbackData      String?
   rawPayload        String?
   reviewedBy        User?     @relation(fields: [reviewedById], references: [id])
