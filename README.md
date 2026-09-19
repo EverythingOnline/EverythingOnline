@@ -23,11 +23,14 @@ Backend:
   - `MPESA_CALLBACK_URL`
   - `FRONTEND_ORIGIN`
   - `DEV_FRONTEND_ORIGIN`
-- npx prisma migrate dev --name init
+- For local Prisma commands, set `DATABASE_URL` to Render's **External Database URL**. Render's internal hostname is only reachable from Render services.
+- `npx prisma migrate dev --name init`
 - npm run dev
 
 ## Docker
 - Build backend: `docker build -t everythingonline-backend ./backend`
+- Configure the deployed backend's `DATABASE_URL` with the database's **Internal Database URL**. Do not use `localhost` unless PostgreSQL runs in the same container.
+- The backend runs `prisma migrate deploy` before starting the server.
 
 ## Notes
 - Prisma schema at `backend/prisma/schema.prisma`
