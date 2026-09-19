@@ -94,7 +94,7 @@ export async function mpesaCallback(req: Request, res: Response, next: NextFunct
             where: { mpesaCheckoutRequestId: checkoutRequestId },
             include: { payments: true },
         });
-        const payment = orderForCallback?.payments.find((item) => item.checkoutRequestId === checkoutRequestId)
+        const payment = orderForCallback?.payments.find((item: { checkoutRequestId?: string | null }) => item.checkoutRequestId === checkoutRequestId)
             ?? await findPaymentByCheckoutRequestId(checkoutRequestId as any);
         if (!payment) {
             const details = {

@@ -57,7 +57,12 @@ export async function getTopSelling(req: Request, res: Response, next: NextFunct
             current.quantitySold += item.quantity;
             totals.set(item.productId, current);
         }
-        res.json({ data: Array.from(totals.values()).sort((a, b) => b.quantitySold - a.quantitySold).slice(0, 10), window: req.query.window === '30d' || req.query.window === 'all' ? req.query.window : '7d' });
+        res.json({
+            data: Array.from(totals.values())
+                .sort((a: { id: string; name: string; quantitySold: number }, b: { id: string; name: string; quantitySold: number }) => b.quantitySold - a.quantitySold)
+                .slice(0, 10),
+            window: req.query.window === '30d' || req.query.window === 'all' ? req.query.window : '7d',
+        });
     } catch (error) {
         next(error);
     }
@@ -70,8 +75,10 @@ export async function getRevenue(req: Request, res: Response, next: NextFunction
         const week = new Date(today);
         week.setDate(today.getDate() - today.getDay());
         const month = new Date(now.getFullYear(), now.getMonth(), 1);
-        const orders = await prisma.order.findMany({ where: paidOrderWhere, select: { total: true, createdAt: true } });
-        const sumSince = (start: Date) => orders.filter((order) => order.createdAt >= start).reduce((sum, order) => sum + order.total, 0);
+        const orders: Array<{ total: number; createdAt: Date }> = await prisma.order.findMany({ where: paidOrderWhere, select: { total: true, createdAt: true } });
+        const sumSince = (start: Date): number => orders
+            .filter((order: { total: number; createdAt: Date }) => order.createdAt >= start)
+            .reduce((sum: number, order: { total: number }) => sum + order.total, 0);
         res.json({ data: { today: sumSince(today), thisWeek: sumSince(week), thisMonth: sumSince(month) } });
     } catch (error) {
         next(error);
