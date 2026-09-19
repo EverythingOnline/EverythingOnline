@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { getProductById } from './productsModel.js';
 
 const prisma = new PrismaClient();
@@ -246,7 +246,7 @@ export async function recordManualPayment({ orderId, paymentMethod, amountReceiv
         orderData.paidAt = new Date();
     }
 
-    const updatedOrder = await prisma.$transaction(async (tx) => {
+    const updatedOrder = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const resolvedAdminId = await resolveAdminUserId(adminId);
         const paymentData: any = {
             orderId,
@@ -309,8 +309,8 @@ export async function finalizeOrderPayment({ orderId, paymentId, reference, resu
         throw error;
     }
 
-    const itemsWithProduct = await Promise.all(
-        order.items.map(async (item) => {
+    const itemsWithProduct: Array<{ item: { productId: string; quantity: number }; product: { name: string; stock: number; price: number } }> = await Promise.all(
+        order.items.map(async (item: { productId: string; quantity: number }) => {
             const product = await getProductById(item.productId);
             if (!product) {
                 const error = new Error(`Invalid product ID: ${item.productId}`) as Error & { status?: number };
@@ -321,16 +321,16 @@ export async function finalizeOrderPayment({ orderId, paymentId, reference, resu
         }),
     );
 
-    const insufficientStockItem = itemsWithProduct.find((entry) => entry.product.stock < entry.item.quantity);
+    const insufficientStockItem = itemsWithProduct.find((entry: { product: { stock: number; name: string }; item: { quantity: number } }) => entry.product.stock < entry.item.quantity);
     if (insufficientStockItem) {
         const error = new Error(`Product ${insufficientStockItem.product.name} is out of stock or does not have enough quantity.`) as Error & { status?: number };
         error.status = 400;
         throw error;
     }
 
-    const updatedOrder = await prisma.$transaction(async (tx) => {
+    const updatedOrder = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await Promise.all(
-            itemsWithProduct.map(({ item }) =>
+            itemsWithProduct.map(({ item }: { item: { productId: string; quantity: number } }) =>
                 tx.product.update({
                     where: { id: item.productId },
                     data: { stock: { decrement: item.quantity } },
@@ -381,8 +381,8 @@ export async function finalizeOrderCheckout({ orderId, adminId }: FinalizeOrderP
         throw error;
     }
 
-    const itemsWithProduct = await Promise.all(
-        order.items.map(async (item) => {
+    const itemsWithProduct: Array<{ item: { productId: string; quantity: number }; product: { name: string; stock: number; price: number } }> = await Promise.all(
+        order.items.map(async (item: { productId: string; quantity: number }) => {
             const product = await getProductById(item.productId);
             if (!product) {
                 const error = new Error(`Invalid product ID: ${item.productId}`) as Error & { status?: number };
@@ -393,7 +393,7 @@ export async function finalizeOrderCheckout({ orderId, adminId }: FinalizeOrderP
         }),
     );
 
-    const expectedSubtotal = itemsWithProduct.reduce((sum, entry) => sum + entry.product.price * entry.item.quantity, 0);
+    const expectedSubtotal = itemsWithProduct.reduce((sum: number, entry: { product: { price: number }; item: { quantity: number } }) => sum + entry.product.price * entry.item.quantity, 0);
     const expectedTotal = expectedSubtotal + order.deliveryFee;
     if (Math.abs(expectedSubtotal - order.subtotal) > 0.01 || Math.abs(expectedTotal - order.total) > 0.01) {
         const error = new Error('Order totals have changed and must be reviewed before finalizing checkout.') as Error & { status?: number };
@@ -408,9 +408,9 @@ export async function finalizeOrderCheckout({ orderId, adminId }: FinalizeOrderP
         throw error;
     }
 
-    const updatedOrder = await prisma.$transaction(async (tx) => {
+    const updatedOrder = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await Promise.all(
-            itemsWithProduct.map(({ item }) =>
+            itemsWithProduct.map(({ item }: { item: { productId: string; quantity: number } }) =>
                 tx.product.update({
                     where: { id: item.productId },
                     data: {

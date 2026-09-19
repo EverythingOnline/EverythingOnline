@@ -7,13 +7,24 @@ const paidOrderWhere = {
     OR: [{ paymentStatus: 'SUCCESSFUL' }, { status: 'PAID' }],
 };
 
+type ProductStockAlert = {
+    id: string;
+    name: string;
+    stock: number;
+    lowStockThreshold: number;
+};
+
 export async function getLowStock(req: Request, res: Response, next: NextFunction) {
     try {
-        const products = await prisma.product.findMany({
+        const products: ProductStockAlert[] = await prisma.product.findMany({
             where: { stock: { gt: 0 }, active: true },
             select: { id: true, name: true, stock: true, lowStockThreshold: true },
         });
-        res.json({ data: products.filter((product) => product.stock <= product.lowStockThreshold).sort((a, b) => a.stock - b.stock) });
+        res.json({
+            data: products
+                .filter((product: ProductStockAlert) => product.stock <= product.lowStockThreshold)
+                .sort((a: ProductStockAlert, b: ProductStockAlert) => a.stock - b.stock),
+        });
     } catch (error) {
         next(error);
     }

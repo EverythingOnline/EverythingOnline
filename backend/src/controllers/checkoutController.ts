@@ -115,9 +115,10 @@ export async function mpesaCallback(req: Request, res: Response, next: NextFunct
 
         const resultCode = Number(stkCallback.ResultCode);
         if (resultCode === 0) {
-            const metadata = stkCallback.CallbackMetadata?.Item || [];
-            const receipt = metadata.find((i: any) => i.Name === 'MpesaReceiptNumber')?.Value ?? null;
-            const callbackAmount = metadata.find((i: any) => i.Name === 'Amount')?.Value;
+            type MpesaMetadataItem = { Name?: string; Value?: number | string | null };
+            const metadata: MpesaMetadataItem[] = stkCallback.CallbackMetadata?.Item || [];
+            const receipt = metadata.find((item: MpesaMetadataItem) => item.Name === 'MpesaReceiptNumber')?.Value ?? null;
+            const callbackAmount = metadata.find((item: MpesaMetadataItem) => item.Name === 'Amount')?.Value;
             await prisma.order.update({ where: { id: payment.orderId }, data: { mpesaReceiptNumber: receipt ? String(receipt) : null, mpesaResultDesc: stkCallback.ResultDesc ?? null } });
             await prisma.payment.update({
                 where: { id: payment.id },
@@ -127,7 +128,13 @@ export async function mpesaCallback(req: Request, res: Response, next: NextFunct
                     callbackData: JSON.stringify(stkCallback),
                 },
             });
-            await finalizeOrderPayment({ orderId: payment.orderId, paymentId: payment.id, reference: receipt, resultCode: stkCallback.ResultCode, resultDesc: stkCallback.ResultDesc });
+            await finalizeOrderPayment({
+                orderId: payment.orderId,
+                paymentId: payment.id,
+                reference: receipt ? String(receipt) : undefined,
+                resultCode: stkCallback.ResultCode,
+                resultDesc: stkCallback.ResultDesc,
+            });
             try { const io = req.app.get('io'); if (io) io.emit('payment:confirmed', { orderId: payment.orderId, paymentId: payment.id }); } catch (e) { }
             return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
         }
