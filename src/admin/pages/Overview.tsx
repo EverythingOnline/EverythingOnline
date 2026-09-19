@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchAdminOrders, fetchAdminProducts, type AdminOrder } from '../api/admin';
 import StatCard from '../components/StatCard';
-import type { Product } from '../../types/product';
+import type { AdminProduct } from '../api/admin';
 
 const currency = new Intl.NumberFormat('en-KE', {
     style: 'currency',
@@ -12,7 +12,7 @@ const currency = new Intl.NumberFormat('en-KE', {
 
 function Overview() {
     const [orders, setOrders] = useState<AdminOrder[]>([]);
-    const [products, setProducts] = useState<Product[]>([]);
+    const [products, setProducts] = useState<AdminProduct[]>([]);
     const [loading, setLoading] = useState(true);
 
     const loadDashboard = () => {
@@ -35,7 +35,7 @@ function Overview() {
     const summary = useMemo(() => {
         const paidOrders = orders.filter((order) => order.paymentStatus === 'SUCCESSFUL' || order.status === 'PAID');
         const totalRevenue = paidOrders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
-        const categories = new Set(products.map((product) => product.category)).size;
+        const categories = new Set(products.map((product) => product.category.id)).size;
         const customerPhones = new Set(orders.map((order) => order.customerPhone).filter(Boolean));
         const today = new Date();
         const thisWeek = orders.filter((order) => {
@@ -125,7 +125,7 @@ function Overview() {
                                 <tr key={order.id} className="hover:bg-slate-50">
                                     <td className="px-4 py-4 text-sm font-medium text-blue-600">#{order.id.slice(0, 8)}</td>
                                     <td className="px-4 py-4 text-sm text-slate-700">{order.customerPhone}</td>
-                                    <td className="px-4 py-4 text-sm text-slate-700">{Array.isArray(order.items) ? order.items.length : 1}</td>
+                                    <td className="px-4 py-4 text-sm text-slate-700">{order.items?.length ?? 0}</td>
                                     <td className="px-4 py-4 text-sm font-bold text-emerald-600">{currency.format(order.total ?? 0)}</td>
                                     <td className="px-4 py-4 text-sm">
                                         <span

@@ -12,8 +12,12 @@ function emitEvent(req: Request, event: string, payload: unknown) {
 
 export async function createOrder(req: Request, res: Response, next: NextFunction) {
     try {
-        const { items, customerPhone, userId, paymentMethod } = req.body;
-        const order = await createOrderRecord({ items, customerPhone, userId, paymentMethod });
+        const { productId, quantity, items, customerPhone, userId, paymentMethod, deliveryFee, shippingMethod, contact } = req.body;
+        const orderItems =
+            Array.isArray(items) && items.length > 0
+                ? items
+                : [{ productId: String(productId), quantity: Number(quantity) }];
+        const order = await createOrderRecord({ items: orderItems, customerPhone, userId, paymentMethod, deliveryFee, shippingMethod, contact });
         emitEvent(req, 'order.created', order);
         res.status(201).json({ data: order });
     } catch (error) {
@@ -23,8 +27,8 @@ export async function createOrder(req: Request, res: Response, next: NextFunctio
 
 export async function createBulkOrders(req: Request, res: Response, next: NextFunction) {
     try {
-        const { items, customerPhone, userId, paymentMethod } = req.body;
-        const order = await createMultipleOrders({ items, customerPhone, userId, paymentMethod });
+        const { items, customerPhone, userId, paymentMethod, deliveryFee, shippingMethod, contact } = req.body;
+        const order = await createMultipleOrders({ items, customerPhone, userId, paymentMethod, deliveryFee, shippingMethod, contact });
         emitEvent(req, 'order.created.bulk', order);
         res.status(201).json({ data: order });
     } catch (error) {

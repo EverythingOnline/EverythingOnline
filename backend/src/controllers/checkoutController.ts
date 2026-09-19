@@ -1,11 +1,56 @@
 import type { Request, Response, NextFunction } from 'express';
-import fetch from 'node-fetch';
+import { PrismaClient } from '@prisma/client';
 import { createMpesaPayment, markPaymentExpired, findPaymentByCheckoutRequestId, createManualPayment } from '../models/paymentsModel.js';
-import { finalizeOrderPayment, getOrderById } from '../models/ordersModel.js';
+import { createMultipleOrders, finalizeOrderPayment, getOrderById } from '../models/ordersModel.js';
+import { normalizeMpesaPhone, sendTillStkPush } from '../services/mpesa.js';
 
-const MPESA_BASE_URL = process.env.MPESA_ENVIRONMENT === 'production'
-    ? 'https://api.safaricom.co.ke'
-    : 'https://sandbox.safaricom.co.ke';
+const prisma = new PrismaClient();
+
+function checkoutError(message: string, status = 400) {
+    const error = new Error(message) as Error & { status?: number };
+    error.status = status;
+    return error;
+}
+
+export async function createCheckoutDraft(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { items, customerPhone, deliveryFee, shippingMethod, contact, paymentMethod } = req.body;
+        if (!Array.isArray(items) || items.length === 0) throw checkoutError('Cart items are required');
+        const order = await createMultipleOrders({ items, customerPhone: customerPhone || '', deliveryFee: Number(deliveryFee ?? 0), shippingMethod, contact, paymentMethod });
+        res.status(201).json({ data: order });
+    } catch (error) { next(error); }
+}
+
+export async function updateCheckoutShipping(req: Request, res: Response, next: NextFunction) {
+    try {
+        const orderId = String(req.params.orderId);
+        const { shippingMethod, deliveryFee } = req.body;
+        if (!shippingMethod || Number.isNaN(Number(deliveryFee))) throw checkoutError('Shipping method and fee are required');
+        const order = await getOrderById(orderId);
+        if (!order) throw checkoutError('Order not found', 404);
+        const updated = await prisma.order.update({ where: { id: orderId }, data: { shippingMethod, deliveryFee: Number(deliveryFee), total: order.subtotal + Number(deliveryFee) }, include: { items: true } });
+        res.json({ data: updated });
+    } catch (error) { next(error); }
+}
+
+export async function updateCheckoutContact(req: Request, res: Response, next: NextFunction) {
+    try {
+        const orderId = String(req.params.orderId);
+        const { firstName, lastName, email, phone, address, city, county, notes } = req.body;
+        if (!firstName || !lastName || !phone) throw checkoutError('First name, last name, and phone are required');
+        const updated = await prisma.order.update({ where: { id: orderId }, data: { customerFirstName: firstName, customerLastName: lastName, customerEmail: email || null, customerPhone: phone, deliveryAddress: address || null, deliveryCity: city || null, deliveryCounty: county || null, deliveryNotes: notes || null }, include: { items: true } });
+        res.json({ data: updated });
+    } catch (error) { next(error); }
+}
+
+export async function finalizeCheckout(req: Request, res: Response, next: NextFunction) {
+    try {
+        const order = await getOrderById(String(req.params.orderId));
+        if (!order) throw checkoutError('Order not found', 404);
+        if (!order.customerFirstName || !order.customerPhone || !order.shippingMethod) throw checkoutError('Checkout details are incomplete');
+        res.json({ data: order });
+    } catch (error) { next(error); }
+}
 
 export async function initiateMpesa(req: Request, res: Response, next: NextFunction) {
     try {
@@ -17,72 +62,16 @@ export async function initiateMpesa(req: Request, res: Response, next: NextFunct
             return res.status(404).json({ error: 'Order not found. Create the order before starting M-Pesa checkout.' });
         }
 
-        const consumerKey = process.env.MPESA_CONSUMER_KEY;
-        const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
-        const shortcode = process.env.MPESA_SHORTCODE;
-        const passkey = process.env.MPESA_PASSKEY;
-        const callbackUrl = process.env.MPESA_CALLBACK_URL;
-        const mockMode = process.env.MPESA_MOCK_MODE !== 'false';
+        const normalizedPhone = normalizeMpesaPhone(String(phoneNumber));
+        const amount = Number(order.total);
+        const { response, data } = await sendTillStkPush({ orderId: String(orderId), phoneNumber: normalizedPhone, amount });
 
-        const amount = Number(req.body.amount ?? 0);
-
-        if (!consumerKey || !consumerSecret || !shortcode || !passkey || !callbackUrl) {
-            if (!mockMode) {
-                return res.status(500).json({ error: 'Missing M-Pesa credentials in environment' });
-            }
-
-            const checkoutRequestId = `MOCK-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-            await createMpesaPayment({ orderId, amount, checkoutRequestId, rawPayload: JSON.stringify({ mock: true, phoneNumber, amount }) });
-            return res.status(200).json({
-                CheckoutRequestID: checkoutRequestId,
-                MerchantRequestID: `MERCHANT-${Date.now()}`,
-                ResponseCode: '0',
-                ResponseDescription: 'Mock STK push generated for local development.',
-                mockMode: true,
-            });
+        if (response.ok && data?.CheckoutRequestID) {
+            await createMpesaPayment({ orderId: String(orderId), amount, checkoutRequestId: data.CheckoutRequestID, rawPayload: JSON.stringify(data) });
+            await prisma.order.update({ where: { id: String(orderId) }, data: { mpesaCheckoutRequestId: data.CheckoutRequestID, paymentMethod: 'MPESA_TILL', customerPhone: normalizedPhone } });
         }
 
-        const authResponse = await fetch(`${MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials`, {
-            headers: {
-                Authorization: `Basic ${Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')}`,
-            },
-        });
-        const authData = await authResponse.json();
-        if (!authData.access_token) throw new Error('Unable to get M-Pesa access token');
-
-        const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-        const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
-
-        const stkRequest = {
-            BusinessShortCode: shortcode,
-            Password: password,
-            Timestamp: timestamp,
-            TransactionType: 'CustomerPayBillOnline',
-            Amount: amount,
-            PartyA: phoneNumber,
-            PartyB: shortcode,
-            PhoneNumber: phoneNumber,
-            CallBackURL: callbackUrl,
-            AccountReference: orderId,
-            TransactionDesc: `Payment for order ${orderId}`,
-        };
-
-        const response = await fetch(`${MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${authData.access_token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(stkRequest),
-        });
-
-        const responseData = await response.json();
-
-        if (responseData && responseData.CheckoutRequestID) {
-            await createMpesaPayment({ orderId, amount, checkoutRequestId: responseData.CheckoutRequestID });
-        }
-
-        res.status(response.status).json(responseData);
+        res.status(response.status).json(data);
     } catch (err) {
         next(err);
     }
@@ -93,15 +82,20 @@ export async function mpesaCallback(req: Request, res: Response, next: NextFunct
         const body = req.body;
         const stkCallback = body?.Body?.stkCallback;
         if (!stkCallback) {
-            return res.status(400).json({ error: 'Invalid payload' });
+            return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
         }
 
         const checkoutRequestId = String(stkCallback.CheckoutRequestID ?? '');
         if (!checkoutRequestId) {
-            return res.status(400).json({ error: 'Missing checkoutRequestId in callback payload' });
+            return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
         }
 
-        const payment = await findPaymentByCheckoutRequestId(checkoutRequestId as any);
+        const orderForCallback = await prisma.order.findUnique({
+            where: { mpesaCheckoutRequestId: checkoutRequestId },
+            include: { payments: true },
+        });
+        const payment = orderForCallback?.payments.find((item) => item.checkoutRequestId === checkoutRequestId)
+            ?? await findPaymentByCheckoutRequestId(checkoutRequestId as any);
         if (!payment) {
             const details = {
                 checkoutRequestId,
@@ -112,24 +106,39 @@ export async function mpesaCallback(req: Request, res: Response, next: NextFunct
             };
             // eslint-disable-next-line no-console
             console.warn('Received M-Pesa callback without matching payment record:', details);
-            return res.json({ result: 'ignored', reason: 'unknown checkoutRequestId' });
+            return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
         }
 
         if (payment.status === 'CONFIRMED' || payment.status === 'FAILED') {
-            return res.json({ result: 'ignored' });
+            return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
         }
 
-        if (stkCallback.ResultCode === 0) {
-            const receipt = (stkCallback.CallbackMetadata?.Item || []).find((i: any) => i.Name === 'MpesaReceiptNumber')?.Value ?? null;
+        const resultCode = Number(stkCallback.ResultCode);
+        if (resultCode === 0) {
+            const metadata = stkCallback.CallbackMetadata?.Item || [];
+            const receipt = metadata.find((i: any) => i.Name === 'MpesaReceiptNumber')?.Value ?? null;
+            const callbackAmount = metadata.find((i: any) => i.Name === 'Amount')?.Value;
+            await prisma.order.update({ where: { id: payment.orderId }, data: { mpesaReceiptNumber: receipt ? String(receipt) : null, mpesaResultDesc: stkCallback.ResultDesc ?? null } });
+            await prisma.payment.update({
+                where: { id: payment.id },
+                data: {
+                    amount: callbackAmount === undefined ? payment.amount : Number(callbackAmount),
+                    merchantRequestId: stkCallback.MerchantRequestID ?? null,
+                    callbackData: JSON.stringify(stkCallback),
+                },
+            });
             await finalizeOrderPayment({ orderId: payment.orderId, paymentId: payment.id, reference: receipt, resultCode: stkCallback.ResultCode, resultDesc: stkCallback.ResultDesc });
             try { const io = req.app.get('io'); if (io) io.emit('payment:confirmed', { orderId: payment.orderId, paymentId: payment.id }); } catch (e) { }
-            return res.json({ result: 'confirmed' });
+            return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
         }
 
-        await markPaymentExpired(payment.id, 'FAILED', stkCallback.ResultCode, stkCallback.ResultDesc);
-        return res.json({ result: 'failed' });
+        await markPaymentExpired(payment.id, 'FAILED', resultCode, stkCallback.ResultDesc);
+        await prisma.order.update({ where: { id: payment.orderId }, data: { paymentStatus: 'FAILED', mpesaResultDesc: stkCallback.ResultDesc ?? null } });
+        return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
     } catch (err) {
-        next(err);
+        // Safaricom expects an acknowledgment even when local processing fails.
+        console.error('M-Pesa callback processing failed', err);
+        res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
     }
 }
 
@@ -137,7 +146,18 @@ export async function manualPaymentHandler(req: Request, res: Response, next: Ne
     try {
         const { orderId, method, reference, amount } = req.body;
         if (!orderId || !method) return res.status(400).json({ error: 'orderId and method required' });
+        const order = await getOrderById(String(orderId));
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
         const payment = await createManualPayment({ orderId, method, reference, amount: Number(amount ?? 0) });
+        try {
+            const io = req.app.get('io');
+            if (io) io.emit('payment.received', { orderId, paymentId: payment.id });
+        } catch {
+            // ignore socket errors
+        }
         res.status(201).json({ data: payment });
     } catch (err) {
         next(err);
@@ -146,11 +166,16 @@ export async function manualPaymentHandler(req: Request, res: Response, next: Ne
 
 export async function getPaymentStatus(req: Request, res: Response, next: NextFunction) {
     try {
-        const { checkoutRequestId } = req.params;
-        if (!checkoutRequestId) return res.status(400).json({ error: 'checkoutRequestId required' });
-        const payment = await findPaymentByCheckoutRequestId(String(checkoutRequestId) as any);
-        if (!payment) return res.status(404).json({ error: 'Not found' });
-        res.json({ data: { status: payment.status, reference: payment.reference } });
+        const orderId = String(req.params.orderId);
+        const order = await getOrderById(orderId);
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+        const payment = order.payments?.find((item: any) => item.method === 'MPESA_DARAJA') ?? order.payments?.[order.payments.length - 1];
+        const status = order.paymentStatus === 'SUCCESSFUL' || order.status === 'PAID'
+            ? 'paid'
+            : payment?.status === 'FAILED' || order.paymentStatus === 'FAILED'
+                ? 'failed'
+                : 'pending';
+        res.json({ data: { status, reference: payment?.reference ?? order.mpesaReceiptNumber ?? null, reason: payment?.resultDesc ?? order.mpesaResultDesc ?? null } });
     } catch (err) {
         next(err);
     }

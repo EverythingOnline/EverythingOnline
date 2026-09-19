@@ -19,6 +19,9 @@ type NewOrderPayload = {
     customerPhone: string;
     userId?: string;
     paymentMethod?: string;
+    deliveryFee?: number;
+    shippingMethod?: string;
+    contact?: { firstName?: string; lastName?: string; email?: string; address?: string; city?: string; county?: string; notes?: string };
 };
 
 type ManualPaymentPayload = {
@@ -144,11 +147,10 @@ function calculateOrderTotals(items: { quantity: number; unitPrice: number }[], 
     return { subtotal, total: subtotal + deliveryFee };
 }
 
-export async function createOrder({ items, customerPhone, userId, paymentMethod = 'CASH' }: NewOrderPayload) {
+export async function createOrder({ items, customerPhone, userId, paymentMethod = 'CASH', deliveryFee = 0, shippingMethod = 'STANDARD', contact }: NewOrderPayload) {
     const normalizedItems = normalizeOrderItems(items);
     const orderItems = await buildOrderItems(normalizedItems);
     const subtotal = orderItems.reduce((sum, item) => sum + item.total, 0);
-    const deliveryFee = 0;
     const total = subtotal + deliveryFee;
 
     const dataAny: any = {
@@ -156,9 +158,17 @@ export async function createOrder({ items, customerPhone, userId, paymentMethod 
         status: 'PENDING',
         paymentStatus: 'UNPAID',
         paymentMethod,
+        shippingMethod,
         subtotal,
         deliveryFee,
         total,
+        customerFirstName: contact?.firstName,
+        customerLastName: contact?.lastName,
+        customerEmail: contact?.email,
+        deliveryAddress: contact?.address,
+        deliveryCity: contact?.city,
+        deliveryCounty: contact?.county,
+        deliveryNotes: contact?.notes,
         items: {
             create: orderItems,
         },
@@ -182,7 +192,7 @@ export async function getOrders(filters: OrderFilters) {
     if (filters.status) where.status = filters.status;
     if (filters.paymentStatus) where.paymentStatus = filters.paymentStatus;
     if (filters.paymentMethod) where.paymentMethod = filters.paymentMethod;
-    if (filters.customerPhone) where.customerPhone = { contains: filters.customerPhone, mode: 'insensitive' };
+    if (filters.customerPhone) where.customerPhone = { contains: filters.customerPhone };
     if (filters.startDate || filters.endDate) {
         where.createdAt = {};
         if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
@@ -198,6 +208,10 @@ export async function getOrders(filters: OrderFilters) {
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
+        include: {
+            items: true,
+            payments: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
     });
 
     return { orders, total, page, pageSize };
@@ -458,6 +472,11 @@ export async function updateOrderStatus({ orderId, status, adminId, reason }: Or
     if (!order) {
         const error = new Error('Order not found') as Error & { status?: number };
         error.status = 404;
+        throw error;
+    }
+    if (status === 'PAID' && order.paymentStatus !== 'SUCCESSFUL') {
+        const error = new Error('An order can only be marked as PAID after payment is successful') as Error & { status?: number };
+        error.status = 400;
         throw error;
     }
     // Best-effort validation using validTransitions map

@@ -7,7 +7,7 @@ function Footer() {
                 <div className="space-y-4">
                     <p className="font-serif text-2xl font-semibold text-[#fcfcf9]">EverythingOnline</p>
                     <p className="max-w-sm text-sm leading-6 text-[#c5d1c8]">
-                        Fresh groceries and household essentials delivered with care across Kenya. We make everyday shopping simple, reliable, and beautiful.
+                        Kenya's online marketplace for everyday essentials - from fresh groceries to household goods and beyond. We make everyday shopping simple, reliable, and trustworthy.
                     </p>
                 </div>
 

@@ -50,7 +50,11 @@ export async function createBulkOrders(payload: BulkOrderPayload) {
         }
 
         const data = await response.json();
-        return data;
+        const order = data.data;
+        return {
+            ...data,
+            data: Array.isArray(order) ? order : order ? [order] : [],
+        };
     } catch (err: any) {
         if (err instanceof TypeError) {
             throw new Error(`Network error: unable to reach backend at ${API_URL}. Is the backend running?`);
@@ -59,28 +63,49 @@ export async function createBulkOrders(payload: BulkOrderPayload) {
     }
 }
 
-export async function initiateMpesaCheckout({ orderId, phoneNumber, amount }: { orderId: string; phoneNumber: string; amount: number }) {
-    const response = await fetch(`${API_URL}/api/checkout/mpesa/initiate`, {
+export async function initiateMpesaCheckout({ orderId, phoneNumber }: { orderId: string; phoneNumber: string }) {
+    const response = await fetch(`${API_URL}/api/checkout/stk-push`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, phoneNumber, amount }),
+        body: JSON.stringify({ orderId, phoneNumber }),
     });
-    if (!response.ok) throw new Error('Failed to initiate M-Pesa checkout');
+    if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || 'Failed to initiate M-Pesa checkout');
+    }
     return response.json();
 }
 
-export async function getMpesaPaymentStatus(checkoutRequestId: string) {
-    const response = await fetch(`${API_URL}/api/checkout/status/${encodeURIComponent(checkoutRequestId)}`);
+export async function getMpesaPaymentStatus(orderId: string) {
+    const response = await fetch(`${API_URL}/api/checkout/payment-status/${encodeURIComponent(orderId)}`);
     if (!response.ok) throw new Error('Unable to fetch payment status');
     return response.json();
 }
 
-export async function submitManualPayment({ orderId, method, reference, amount }: { orderId: string; method: string; reference?: string; amount?: number }) {
-    const response = await fetch(`${API_URL}/api/checkout/manual`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, method, reference, amount }),
+async function checkoutRequest(path: string, init: RequestInit) {
+    const response = await fetch(`${API_URL}/api/checkout${path}`, {
+        ...init,
+        headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
     });
-    if (!response.ok) throw new Error('Failed to submit manual payment');
+    if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `Checkout request failed (${response.status})`);
+    }
     return response.json();
+}
+
+export function createCheckoutDraft(payload: { items: { productId: string; quantity: number }[]; deliveryFee: number; shippingMethod: string; paymentMethod: string }) {
+    return checkoutRequest('/draft', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateCheckoutShipping(orderId: string, shippingMethod: string, deliveryFee: number) {
+    return checkoutRequest(`/${orderId}/shipping`, { method: 'PATCH', body: JSON.stringify({ shippingMethod, deliveryFee }) });
+}
+
+export function updateCheckoutContact(orderId: string, payload: Record<string, string>) {
+    return checkoutRequest(`/${orderId}/contact`, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function finalizeCheckout(orderId: string) {
+    return checkoutRequest(`/${orderId}/finalize`, { method: 'POST', body: JSON.stringify({}) });
 }

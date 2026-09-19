@@ -2,46 +2,15 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { formatKes } from '../utils/currency';
 import { useCart } from '../hooks/useCart';
-import { createBulkOrders } from '../services/orderService';
 
 function CartPage() {
     const { cart, removeItem, setQuantity, clearCart } = useCart();
-    const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
-    const [message, setMessage] = useState<string | null>(null);
-    const [customerPhone, setCustomerPhone] = useState('');
-
+    const [savedItems, setSavedItems] = useState<string[]>([]);
+    const [promoCode, setPromoCode] = useState('');
+    const [promoMessage, setPromoMessage] = useState('');
     const navigate = useNavigate();
-
-    async function handleCheckout() {
-        if (!customerPhone.trim()) {
-            setStatus('error');
-            setMessage('Please enter your phone number to complete checkout.');
-            return;
-        }
-
-        if (cart.items.length === 0) {
-            setStatus('error');
-            setMessage('Your cart is empty. Add items before checking out.');
-            return;
-        }
-
-        setStatus('saving');
-        setMessage(null);
-
-        try {
-            const items = cart.items.map((item) => ({ productId: item.product.id, quantity: item.quantity }));
-            const resp = await createBulkOrders({ items, customerPhone });
-            setStatus('success');
-            const successMessage = 'Thank you for shopping at EverythingOnline. You are welcome to shop here every other time.';
-            setMessage(successMessage);
-            clearCart();
-            // navigate to success page and pass the message and created orders
-            navigate('/checkout-success', { state: { message: successMessage, orders: resp.data } });
-        } catch (error: any) {
-            setStatus('error');
-            setMessage(error?.message ?? 'Unable to place order.');
-        }
-    }
+    const deliveryFee = cart.subtotal >= 500 ? 0 : 150;
+    const total = cart.subtotal + deliveryFee;
 
     if (!cart.items.length) {
         return (
@@ -93,16 +62,15 @@ function CartPage() {
                                 </div>
 
                                 <div className="grid gap-3 text-sm">
-                                    <label className="flex flex-col gap-2 text-[#5a645d]">
-                                        Quantity
-                                        <input
-                                            type="number"
-                                            min={1}
-                                            value={item.quantity}
-                                            onChange={(event) => setQuantity(item.product.id, Number(event.target.value))}
-                                            className="w-24 rounded-2xl border border-[#e3e2da] bg-[#f8faf7] px-3 py-2 text-sm text-[#16332b] outline-none"
-                                        />
-                                    </label>
+                                    <div className="flex items-center gap-3 text-sm text-[#5a645d]">
+                                        <span>Quantity</span>
+                                        <div className="flex items-center rounded-2xl border border-[#e3e2da] bg-[#f8faf7]">
+                                            <button type="button" onClick={() => setQuantity(item.product.id, item.quantity - 1)} className="px-3 py-2 text-lg">-</button>
+                                            <span className="min-w-8 text-center text-[#16332b]">{item.quantity}</span>
+                                            <button type="button" onClick={() => setQuantity(item.product.id, item.quantity + 1)} className="px-3 py-2 text-lg">+</button>
+                                        </div>
+                                    </div>
+                                    <button type="button" onClick={() => setSavedItems([...savedItems, item.product.id])} className="text-left text-sm font-semibold text-[#28704b]">{savedItems.includes(item.product.id) ? 'Saved for later' : 'Save for later'}</button>
                                     <button
                                         type="button"
                                         onClick={() => removeItem(item.product.id)}
@@ -125,38 +93,27 @@ function CartPage() {
                         </div>
                         <div className="flex items-center justify-between text-sm text-[#5a645d]">
                             <span>Delivery</span>
-                            <span>{formatKes(cart.total - cart.subtotal)}</span>
+                            <span>{deliveryFee ? formatKes(deliveryFee) : 'Free'}</span>
                         </div>
+                        {cart.subtotal < 500 && <p className="rounded-2xl bg-[#edf8ef] px-3 py-2 text-xs font-medium text-[#28704b]">Add {formatKes(500 - cart.subtotal)} more for free delivery!</p>}
                         <div className="border-t border-[#e3e2da] pt-4 text-lg font-semibold text-[#16332b] flex items-center justify-between">
                             <span>Total</span>
-                            <span>{formatKes(cart.total)}</span>
+                            <span>{formatKes(total)}</span>
                         </div>
-                    </div>
-                    <div className="space-y-4">
-                        <label className="block text-sm font-medium text-[#5a645d]">
-                            Phone number
-                            <input
-                                type="tel"
-                                value={customerPhone}
-                                onChange={(event) => setCustomerPhone(event.target.value)}
-                                className="mt-2 w-full rounded-2xl border border-[#e3e2da] bg-[#f8faf7] px-4 py-3 text-sm text-[#16332b] outline-none"
-                                placeholder="Enter phone number"
-                            />
-                        </label>
-                        {message && (
-                            <div className={`rounded-3xl px-4 py-3 text-sm ${status === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
-                                {message}
-                            </div>
-                        )}
                     </div>
                     <button
                         type="button"
-                        disabled={status === 'saving'}
-                        onClick={handleCheckout}
+                        onClick={() => navigate('/checkout')}
                         className="w-full rounded-3xl bg-[#16332b] px-6 py-4 text-sm font-semibold text-white transition hover:bg-[#1e4436] disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        {status === 'saving' ? 'Placing order...' : 'Checkout now'}
+                        Proceed to Checkout
                     </button>
+                    <p className="text-center text-xs text-[#718078]">Secure 256-bit SSL checkout</p>
+                    <div className="mt-6 border-t border-[#e3e2da] pt-5">
+                        <label className="text-sm font-medium text-[#5a645d]">Promo code<input value={promoCode} onChange={(event) => setPromoCode(event.target.value)} className="mt-2 w-full rounded-2xl border border-[#e3e2da] bg-[#f8faf7] px-4 py-3 text-sm text-[#16332b] outline-none" placeholder="Enter code" /></label>
+                        <button type="button" onClick={() => setPromoMessage(promoCode ? 'Promo codes will be applied at checkout.' : 'Enter a promo code first.')} className="mt-2 rounded-full border border-[#28704b] px-4 py-2 text-xs font-semibold text-[#28704b]">Apply</button>
+                        {promoMessage && <p className="mt-2 text-xs text-[#28704b]">{promoMessage}</p>}
+                    </div>
                 </aside>
             </div>
         </div>

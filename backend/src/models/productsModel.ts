@@ -50,21 +50,28 @@ async function getCategoryId(categoryName: string) {
 }
 
 function formatProduct(product: any) {
+    const image = product.imageUrl || product.images || '';
     return {
         ...product,
         category: product.category?.name ?? 'Unknown',
-        images: typeof product.images === 'string' ? [product.images] : product.images,
+        images: typeof image === 'string' ? (image ? [image] : []) : image,
         nutrition: typeof product.nutrition === 'string' ? JSON.parse(product.nutrition) : product.nutrition,
     };
 }
 
 export async function getAllProducts() {
-    const products = await prisma.product.findMany({ include: { category: true } });
+    const products = await prisma.product.findMany({
+        where: { active: true },
+        include: { category: true },
+    });
     return products.map(formatProduct);
 }
 
 export async function getProductById(id: string) {
-    const product = await prisma.product.findUnique({ where: { id }, include: { category: true } });
+    const product = await prisma.product.findFirst({
+        where: { active: true, OR: [{ id }, { slug: id }] },
+        include: { category: true },
+    });
     if (!product) return null;
     return formatProduct(product);
 }

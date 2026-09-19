@@ -21,17 +21,30 @@ function mergeWithLocalData(product: BackendProduct): Product {
         rating: product.rating,
         reviewCount: product.reviewCount,
         stock: product.stock,
-        images: product.images,
-        nutrition: product.nutrition,
+        images: product.images ?? fallback?.images ?? [],
+        nutrition: {
+            calories: product.nutrition?.calories ?? fallback?.nutrition.calories ?? '',
+            protein: product.nutrition?.protein ?? fallback?.nutrition.protein ?? '',
+            fat: product.nutrition?.fat ?? fallback?.nutrition.fat ?? '',
+            carbs: product.nutrition?.carbs ?? fallback?.nutrition.carbs ?? '',
+            ingredients: product.nutrition?.ingredients ?? fallback?.nutrition.ingredients ?? [],
+        },
+        highlights: product.highlights ?? fallback?.highlights ?? [],
+        badges: product.badges ?? fallback?.badges ?? [],
+        reviews: product.reviews ?? fallback?.reviews ?? [],
     } as Product;
 }
 
 async function fetchBackend<T>(path: string): Promise<T | undefined> {
     try {
         const response = await fetch(`${API_URL}${path}`);
-        if (!response.ok) return undefined;
+        if (!response.ok) {
+            console.error(`Product request failed (${response.status}): ${path}`);
+            return undefined;
+        }
         return (await response.json()) as T;
-    } catch {
+    } catch (error) {
+        console.error(`Product request failed: ${path}`, error);
         return undefined;
     }
 }

@@ -7,6 +7,7 @@ import Orders from '../pages/Orders';
 import Payments from '../pages/Payments';
 import Analytics from '../pages/Analytics';
 import AdminLogin from '../pages/Login';
+import ProductForm from './ProductForm';
 
 function AdminRoutes() {
     return (
@@ -21,6 +22,8 @@ function AdminRoutes() {
             >
                 <Route index element={<Overview />} />
                 <Route path="products" element={<Products />} />
+                <Route path="products/new" element={<ProductForm />} />
+                <Route path="products/:id/edit" element={<ProductForm />} />
                 <Route path="orders" element={<Orders />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="analytics" element={<Analytics />} />

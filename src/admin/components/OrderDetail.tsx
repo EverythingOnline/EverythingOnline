@@ -4,9 +4,10 @@ import { fetchAdminOrder, finalizeOrderCheckout, recordManualPayment, type Admin
 type OrderDetailProps = {
     orderId: string;
     onClose: () => void;
+    onUpdated?: (order: AdminOrder) => void;
 };
 
-function OrderDetail({ orderId, onClose }: OrderDetailProps) {
+function OrderDetail({ orderId, onClose, onUpdated }: OrderDetailProps) {
     const [order, setOrder] = useState<AdminOrder | null>(null);
     const [paymentMethod, setPaymentMethod] = useState('CASH');
     const [paymentReference, setPaymentReference] = useState('');
@@ -48,7 +49,9 @@ function OrderDetail({ orderId, onClose }: OrderDetailProps) {
                 paymentReference: paymentReference || undefined,
             });
             setOrder(updatedOrder);
+            onUpdated?.(updatedOrder);
             setSuccess('Manual payment recorded successfully.');
+            window.dispatchEvent(new CustomEvent('admin:data.updated'));
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -64,7 +67,9 @@ function OrderDetail({ orderId, onClose }: OrderDetailProps) {
         try {
             const updatedOrder = await finalizeOrderCheckout(orderId);
             setOrder(updatedOrder);
+            onUpdated?.(updatedOrder);
             setSuccess('Checkout finalized successfully.');
+            window.dispatchEvent(new CustomEvent('admin:data.updated'));
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -76,14 +81,14 @@ function OrderDetail({ orderId, onClose }: OrderDetailProps) {
         return <p className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Loading order...</p>;
     }
 
-    const canRecordManualPayment = order.paymentStatus !== 'SUCCESSFUL' && order.paymentStatus !== 'PAID';
+    const canRecordManualPayment = order.paymentStatus !== 'SUCCESSFUL' && order.status !== 'PAID';
     const canFinalizeCheckout = order.status === 'PENDING';
 
     return (
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Order #{order.id}</p>
+                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Order #{order.id.slice(0, 8)}</p>
                     <h2 className="mt-2 text-2xl font-semibold text-slate-900">{order.customerPhone}</h2>
                 </div>
                 <button type="button" onClick={onClose} className="rounded-2xl border border-slate-300 px-4 py-2 text-sm text-slate-700">
@@ -98,7 +103,30 @@ function OrderDetail({ orderId, onClose }: OrderDetailProps) {
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4">
                     <p className="text-sm font-semibold text-slate-500">Payment</p>
-                    <p className="mt-2 text-sm font-medium text-slate-900">{order.paymentStatus} • {order.paymentMethod}</p>
+                    <p className="mt-2 text-sm font-medium text-slate-900">
+                        {order.paymentStatus} • {order.paymentMethod}
+                    </p>
+                </div>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-slate-200">
+                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">Line items</div>
+                <ul className="divide-y divide-slate-200">
+                    {(order.items ?? []).map((item) => (
+                        <li key={item.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                            <div>
+                                <p className="font-medium text-slate-900">{item.name}</p>
+                                <p className="text-slate-500">
+                                    {item.quantity} × KES {item.unitPrice.toLocaleString()}
+                                </p>
+                            </div>
+                            <p className="font-semibold text-emerald-700">KES {item.total.toLocaleString()}</p>
+                        </li>
+                    ))}
+                </ul>
+                <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">
+                    <span>Total</span>
+                    <span className="text-emerald-700">KES {Number(order.total).toLocaleString()}</span>
                 </div>
             </div>
 
@@ -106,17 +134,13 @@ function OrderDetail({ orderId, onClose }: OrderDetailProps) {
             {success ? <p className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</p> : null}
 
             <div className="mt-8 flex flex-wrap gap-3">
-                {canRecordManualPayment ? (
+                {canFinalizeCheckout ? (
                     <button
                         type="button"
-                        onClick={() => setSuccess(null)}
-                        className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                        onClick={handleFinalizeCheckout}
+                        disabled={isSubmitting}
+                        className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                     >
-                        Record manual payment
-                    </button>
-                ) : null}
-                {canFinalizeCheckout ? (
-                    <button type="button" onClick={handleFinalizeCheckout} disabled={isSubmitting} className="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
                         Complete checkout
                     </button>
                 ) : null}
@@ -124,10 +148,15 @@ function OrderDetail({ orderId, onClose }: OrderDetailProps) {
 
             {canRecordManualPayment ? (
                 <form onSubmit={handleManualPayment} className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="mb-4 text-sm font-semibold text-slate-800">Record manual payment</p>
                     <div className="grid gap-4 md:grid-cols-2">
                         <label className="text-sm font-medium text-slate-700">
                             Payment method
-                            <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className="mt-2 block w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900">
+                            <select
+                                value={paymentMethod}
+                                onChange={(event) => setPaymentMethod(event.target.value)}
+                                className="mt-2 block w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900"
+                            >
                                 <option value="CASH">Cash</option>
                                 <option value="BANK_TRANSFER">Bank Transfer</option>
                                 <option value="MPESA_TILL">M-Pesa Till/Manual</option>
@@ -135,14 +164,25 @@ function OrderDetail({ orderId, onClose }: OrderDetailProps) {
                         </label>
                         <label className="text-sm font-medium text-slate-700">
                             Amount received
-                            <input type="number" value={amountReceived} onChange={(event) => setAmountReceived(event.target.value)} className="mt-2 block w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900" />
+                            <input
+                                type="number"
+                                value={amountReceived}
+                                onChange={(event) => setAmountReceived(event.target.value)}
+                                className="mt-2 block w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900"
+                            />
                         </label>
                     </div>
                     <label className="mt-4 block text-sm font-medium text-slate-700">
                         Reference / note
-                        <input type="text" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} className="mt-2 block w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900" placeholder="Receipt number, till number, transfer code" />
+                        <input
+                            type="text"
+                            value={paymentReference}
+                            onChange={(event) => setPaymentReference(event.target.value)}
+                            className="mt-2 block w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900"
+                            placeholder="Receipt number, till number, transfer code"
+                        />
                     </label>
-                    <button type="submit" disabled={isSubmitting} className="mt-4 rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">
+                    <button type="submit" disabled={isSubmitting} className="mt-4 rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
                         {isSubmitting ? 'Saving...' : 'Save manual payment'}
                     </button>
                 </form>

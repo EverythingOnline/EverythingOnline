@@ -1,57 +1,48 @@
 import { PrismaClient } from '@prisma/client';
-import { products as frontendProducts } from '../../src/data/products.ts';
 
 const prisma = new PrismaClient();
 
+const categoryNames = [
+    'Food & Groceries',
+    'Fresh Produce',
+    'Beverages',
+    'Bakery',
+    'Home & Kitchen',
+    'Electronics',
+    'Phones & Accessories',
+    'Fashion',
+    'Health & Beauty',
+    'Household & Cleaning Supplies',
+    'Baby Products',
+    'Sports & Outdoors',
+    'Books, Stationery & Office',
+    'Automotive',
+    'Furniture & Décor',
+    'Toys & Games',
+    'Pet Supplies',
+    'Other',
+];
+
+function slugify(name: string) {
+    return name
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/&/g, 'and')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+}
+
 async function main() {
-    await prisma.product.deleteMany();
-    await prisma.category.deleteMany();
-
-    const categories = Array.from(new Set(frontendProducts.map((product) => product.category)));
-    const categoryMap: Record<string, string> = {};
-
-    for (const categoryName of categories) {
-        const slug = categoryName.toLowerCase().replace(/\s+/g, '-');
-        const category = await prisma.category.create({ data: { name: categoryName, slug } });
-        categoryMap[categoryName] = category.id;
-    }
-
-    for (const product of frontendProducts) {
-        await prisma.product.create({
-            data: {
-                id: product.id,
-                name: product.name,
-                slug: product.slug,
-                description: product.description,
-                brand: product.brand,
-                price: product.price,
-                originalPrice: product.originalPrice ?? product.price,
-                discount: product.discount,
-                rating: product.rating,
-                reviewCount: product.reviewCount,
-                stock: product.stock,
-                lowStockThreshold: product.lowStockThreshold ?? 5,
-                isArchived: product.isArchived ?? false,
-                nutrition: JSON.stringify(product.nutrition),
-                categoryId: categoryMap[product.category] ?? categoryMap['Milk'],
-                images: Array.isArray(product.images) ? product.images[0] ?? '' : String(product.images ?? ''),
-            },
+    for (const name of categoryNames) {
+        await prisma.category.upsert({
+            where: { name },
+            update: {},
+            create: { name, slug: slugify(name) },
         });
     }
 
-    await prisma.user.upsert({
-        where: { id: 'admin' },
-        update: {},
-        create: {
-            id: 'admin',
-            email: 'admin@example.com',
-            name: 'Administrator',
-            password: 'admin123',
-            role: 'admin',
-        },
-    });
-
-    console.log('Seeded database with frontend products and admin user.');
+    console.log(`Seeded ${categoryNames.length} product categories.`);
 }
 
 main()

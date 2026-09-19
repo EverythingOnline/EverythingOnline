@@ -11,22 +11,47 @@ function ProductPage() {
     const { addItem, clearCart } = useCart();
     const [product, setProduct] = useState<Product | undefined>();
     const [related, setRelated] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const fallbackImage = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22600%22 height=%22400%22 viewBox=%220 0 600 400%22%3E%3Crect width=%22600%22 height=%22400%22 fill=%22%23f1f4ef%22/%3E%3Ctext x=%22300%22 y=%22210%22 text-anchor=%22middle%22 fill=%22%2316332b%22 font-family=%22sans-serif%22 font-size=%2224%22%3ENo image available%3C/text%3E%3C/svg%3E';
+    const compareAtPrice = product && Number(product.originalPrice) > product.price ? product.originalPrice : undefined;
 
     useEffect(() => {
-        if (!slug) return;
+        setLoading(true);
+        setError(null);
+        setProduct(undefined);
+        if (!slug) {
+            setError('Product not found.');
+            setLoading(false);
+            return;
+        }
 
-        fetchProductBySlug(slug).then(setProduct);
-        fetchProducts().then((allProducts) => {
-            setRelated(allProducts.filter((item) => item.category === 'Milk' && item.slug !== slug).slice(0, 4));
-        });
+        fetchProductBySlug(slug)
+            .then((result) => {
+                if (result) setProduct(result);
+                else setError('Product not found.');
+            })
+            .catch((fetchError) => {
+                console.error('Unable to load product detail', fetchError);
+                setError('Unable to load this product.');
+            })
+            .finally(() => setLoading(false));
+
+        fetchProducts()
+            .then((allProducts) => setRelated(allProducts.filter((item) => item.category === 'Milk' && item.slug !== slug).slice(0, 4)))
+            .catch((fetchError) => console.error('Unable to load related products', fetchError));
     }, [slug]);
 
-    if (!product) {
+    if (loading) {
         return (
             <div className="mx-auto max-w-6xl px-6 py-24 lg:px-8">
                 <p className="text-sm text-[#5a645d]">Loading product...</p>
             </div>
         );
+    }
+
+    if (!product) {
+        return <div className="mx-auto max-w-6xl px-6 py-24 lg:px-8"><p className="text-lg font-semibold text-[#16332b]">{error ?? 'Product not found.'}</p><Link to="/products" className="mt-4 inline-block text-sm font-semibold text-[#1c5139]">Back to products</Link></div>;
     }
 
     const handleAddToCart = () => {
@@ -44,9 +69,9 @@ function ProductPage() {
             <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
                 <div className="space-y-6">
                     <div className="grid gap-4 sm:grid-cols-2">
-                        {product.images.map((image) => (
+                        {(product.images.length ? product.images : [fallbackImage]).map((image) => (
                             <div key={image} className="overflow-hidden rounded-[2rem] bg-[#f8faf7]">
-                                <img src={image} alt={product.name} className="h-80 w-full object-cover transition duration-500 hover:scale-105" />
+                                <img src={image} alt={product.name} onError={(event) => { if (event.currentTarget.src !== fallbackImage) event.currentTarget.src = fallbackImage; }} className="h-80 w-full object-cover transition duration-500 hover:scale-105" />
                             </div>
                         ))}
                     </div>
@@ -80,7 +105,7 @@ function ProductPage() {
 
                             <div className="flex items-center gap-3">
                                 <p className="text-3xl font-semibold text-[#16332b]">{formatKes(product.price)}</p>
-                                <p className="text-sm line-through text-[#7c8a7f]">{formatKes(product.originalPrice)}</p>
+                                {compareAtPrice && <p className="text-sm line-through text-[#7c8a7f]">{formatKes(compareAtPrice)}</p>}
                             </div>
 
                             <p className="text-sm leading-6 text-[#5a645d]">{product.description}</p>

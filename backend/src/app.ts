@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import productsRouter from './routes/products.js';
@@ -11,10 +10,11 @@ import checkoutRouter from './routes/checkout.js';
 import adminRouter from './routes/admin.js';
 import adminOrdersRouter from './routes/adminOrders.js';
 import authRouter from './routes/auth.js';
+import categoriesRouter from './routes/categories.js';
+import adminProductsRouter from './routes/adminProducts.js';
+import adminAnalyticsRouter from './routes/adminAnalytics.js';
 import errorHandler from './middleware/errorHandler.js';
 import './jobs/expirePaymentsJob.js';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,13 +63,20 @@ app.use(
     }),
 );
 app.use(express.json());
+app.use('/uploads', (req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+}, express.static(path.resolve(__dirname, '../uploads')), express.static(path.resolve(__dirname, 'uploads')));
 
 app.use('/api/auth', authRouter);
+app.use('/api/categories', categoriesRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/checkout', checkoutRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/admin/products', adminProductsRouter);
+app.use('/api/admin/analytics', adminAnalyticsRouter);
 app.use('/api/admin/orders', adminOrdersRouter);
 
 app.use(express.static(clientDist));

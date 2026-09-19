@@ -73,6 +73,8 @@ model Product {
   lowStockThreshold Int            @default(5)
   isArchived        Boolean        @default(false)
   nutrition         String
+  imageUrl          String?
+  active            Boolean        @default(true)
   category          Category       @relation(fields: [categoryId], references: [id])
   categoryId        String
   vendor            Vendor?        @relation(fields: [vendorId], references: [id])
@@ -81,6 +83,7 @@ model Product {
   productImages     ProductImage[]
   orderItems        OrderItem[]
   createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 }
 
 model ProductImage {
@@ -96,9 +99,20 @@ model ProductImage {
 model Order {
   id                String               @id @default(cuid())
   customerPhone     String
+  customerFirstName String?
+  customerLastName  String?
+  customerEmail     String?
+  deliveryAddress   String?
+  deliveryCity      String?
+  deliveryCounty    String?
+  deliveryNotes     String?
+  shippingMethod    String               @default("STANDARD")
   status            String               @default("PENDING")
   paymentStatus     String               @default("UNPAID")
   paymentMethod     String               @default("CASH")
+  mpesaCheckoutRequestId String?          @unique
+  mpesaReceiptNumber String?
+  mpesaResultDesc   String?
   paidAt            DateTime?
   confirmedBy       String?
   shippingAddress   Address?             @relation("ShippingAddress", fields: [shippingAddressId], references: [id])
