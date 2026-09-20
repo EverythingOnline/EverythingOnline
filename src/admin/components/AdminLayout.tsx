@@ -18,7 +18,7 @@ function AdminLayout() {
     const [, setSocket] = useState<Socket | null>(null);
 
     useEffect(() => {
-        const apiUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+        const apiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? '';
         const s = ioClient(apiUrl, { transports: ['websocket'] });
         setSocket(s);
 

@@ -1,7 +1,7 @@
 import type { Product } from '../types/product';
 import { products } from '../data/products';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+const API_URL = import.meta.env.VITE_API_URL;
 
 type BackendProduct = Omit<Product, 'images' | 'nutrition'> & {
     images: string[];
