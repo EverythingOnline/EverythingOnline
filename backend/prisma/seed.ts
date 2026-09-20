@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -23,6 +24,9 @@ const categoryNames = [
     'Other',
 ];
 
+const adminEmail = process.env.SEED_ADMIN_EMAIL;
+const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+
 function slugify(name: string) {
     return name
         .normalize('NFKD')
@@ -34,6 +38,27 @@ function slugify(name: string) {
 }
 
 async function main() {
+    if (!adminEmail || !adminPassword) {
+        throw new Error('Missing SEED_ADMIN_EMAIL or SEED_ADMIN_PASSWORD environment variables.');
+    }
+
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
+    await prisma.user.upsert({
+        where: { email: adminEmail },
+        update: {
+            name: 'Administrator',
+            password: hashedPassword,
+            role: 'admin',
+        },
+        create: {
+            email: adminEmail,
+            name: 'Administrator',
+            password: hashedPassword,
+            role: 'admin',
+        },
+    });
+
     for (const name of categoryNames) {
         await prisma.category.upsert({
             where: { name },
@@ -42,7 +67,7 @@ async function main() {
         });
     }
 
-    console.log(`Seeded ${categoryNames.length} product categories.`);
+    console.log(`Seeded admin user (${adminEmail}) and ${categoryNames.length} product categories.`);
 }
 
 main()
