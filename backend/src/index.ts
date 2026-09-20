@@ -3,7 +3,7 @@ import http from 'http';
 import { Server as IOServer } from 'socket.io';
 import app from './app.js';
 
-const port = Number(process.env.PORT ?? 4000);
+const PORT = process.env.PORT || 4000;
 const server = http.createServer(app);
 
 const io = new IOServer(server, {
@@ -23,4 +23,6 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(port, () => console.log(`Backend running on port ${port}`));
+server.listen(PORT, () => {
+    console.log(`Backend running on port ${PORT}`);
+});
