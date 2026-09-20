@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import productsRouter from './routes/products.js';
 import ordersRouter from './routes/orders.js';
 import paymentsRouter from './routes/payments.js';
@@ -16,8 +15,7 @@ import adminAnalyticsRouter from './routes/adminAnalytics.js';
 import errorHandler from './middleware/errorHandler.js';
 import './jobs/expirePaymentsJob.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const app = express();
 
 const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
@@ -32,24 +30,6 @@ const allowedOrigins = [
     'http://127.0.0.1:3001',
     'http://127.0.0.1:4000',
 ];
-const clientDist = path.resolve(__dirname, '../../dist');
-const indexFile = path.join(clientDist, 'index.html');
-
-// sanity checks for static assets at startup — helps diagnose missing build issues
-try {
-    // require fs here so it only runs in Node environment
-    const fs = await import('fs');
-    if (!fs.existsSync(clientDist)) {
-        // log a clear warning so devs know to run the frontend build or use Vite
-        // eslint-disable-next-line no-console
-        console.warn(`Frontend dist not found at ${clientDist}. Use the Vite dev server or run a build.`);
-    } else if (!fs.existsSync(indexFile)) {
-        // eslint-disable-next-line no-console
-        console.warn(`index.html not found in ${clientDist}. Frontend build may be incomplete.`);
-    }
-} catch (e) {
-    // ignore — this file may be imported in environments where fs isn't available
-}
 
 app.use(helmet());
 app.use(
@@ -78,18 +58,10 @@ app.use('/api/admin', adminRouter);
 app.use('/api/admin/products', adminProductsRouter);
 app.use('/api/admin/analytics', adminAnalyticsRouter);
 app.use('/api/admin/orders', adminOrdersRouter);
-
-app.use(express.static(clientDist));
 app.get('/health', (req, res) => res.json({ ok: true }));
-app.get('/', (req, res) => {
-    res.redirect(frontendOrigin);
-});
-app.get('*', (req, res) => {
-    res.sendFile(indexFile, (err) => {
-        if (err) {
-            res.status(500).send('Unable to load the application');
-        }
-    });
+
+app.use((req, res) => {
+    res.status(404).json({ error: 'Not found' });
 });
 
 app.use(errorHandler);
