@@ -71,7 +71,14 @@ export async function initiateMpesaCheckout({ orderId, phoneNumber }: { orderId:
     });
     if (!response.ok) {
         const body = await response.text();
-        throw new Error(body || 'Failed to initiate M-Pesa checkout');
+        let message = body || 'Failed to initiate M-Pesa checkout';
+        try {
+            const parsed = JSON.parse(body) as { error?: string };
+            message = parsed.error || message;
+        } catch {
+            // Keep the raw response when the backend does not return JSON.
+        }
+        throw new Error(message);
     }
     return response.json();
 }
