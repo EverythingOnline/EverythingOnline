@@ -5,6 +5,24 @@ const MPESA_BASE_URL = MPESA_ENV === 'production' ? 'https://api.safaricom.co.ke
 
 let cachedToken: { value: string; expiresAt: number } | undefined;
 
+type MpesaStkResponse = {
+    CheckoutRequestID?: string;
+    [key: string]: unknown;
+};
+
+async function readMpesaResponse<T>(response: Response): Promise<T> {
+    const body = await response.text();
+    if (!body.trim()) {
+        throw new Error(`M-Pesa returned an empty response (HTTP ${response.status})`);
+    }
+
+    try {
+        return JSON.parse(body) as T;
+    } catch {
+        throw new Error(`M-Pesa returned invalid JSON (HTTP ${response.status})`);
+    }
+}
+
 function requiredEnv(name: string) {
     const value = process.env[name];
     if (!value) throw new Error(`Missing ${name} in backend environment`);
@@ -19,7 +37,7 @@ export async function getMpesaAccessToken() {
     const response = await fetch(`${MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials`, {
         headers: { Authorization: `Basic ${Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')}` },
     });
-    const data = await response.json() as { access_token?: string; expires_in?: string };
+    const data = await readMpesaResponse<{ access_token?: string; expires_in?: string }>(response);
     if (!response.ok || !data.access_token) throw new Error('Unable to get M-Pesa access token');
 
     const expiresIn = Number(data.expires_in ?? 3600);
@@ -63,6 +81,6 @@ export async function sendTillStkPush({ orderId, phoneNumber, amount }: { orderI
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
     });
-    const data = await response.json();
+    const data = await readMpesaResponse<MpesaStkResponse>(response);
     return { response, data };
 }
