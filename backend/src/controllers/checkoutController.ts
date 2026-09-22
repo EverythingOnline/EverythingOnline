@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createMpesaPayment, markPaymentExpired, findPaymentByCheckoutRequestId, createManualPayment } from '../models/paymentsModel.js';
 import { createMultipleOrders, finalizeOrderPayment, getOrderById } from '../models/ordersModel.js';
-import { normalizeMpesaPhone, sendTillStkPush } from '../services/mpesa.js';
+import { normalizeMpesaPhone, queryStkStatus, sendTillStkPush } from '../services/mpesa.js';
 
 const prisma = new PrismaClient();
 
@@ -173,6 +173,13 @@ export async function manualPaymentHandler(req: Request, res: Response, next: Ne
 
 export async function getPaymentStatus(req: Request, res: Response, next: NextFunction) {
     try {
+        if (req.params.checkoutRequestId) {
+            const checkoutRequestId = String(req.params.checkoutRequestId);
+            if (!checkoutRequestId) return res.status(400).json({ error: 'checkoutRequestId required' });
+            const { response, data } = await queryStkStatus(checkoutRequestId);
+            return res.status(response.status).json({ data });
+        }
+
         const orderId = String(req.params.orderId);
         const order = await getOrderById(orderId);
         if (!order) return res.status(404).json({ error: 'Order not found' });

@@ -56,6 +56,27 @@ export function createStkPassword(tillNumber: string, passkey: string, timestamp
     return Buffer.from(`${tillNumber}${passkey}${timestamp}`).toString('base64');
 }
 
+export async function queryStkStatus(checkoutRequestId: string) {
+    const tillNumber = requiredEnv('MPESA_TILL_NUMBER');
+    const passkey = requiredEnv('MPESA_PASSKEY');
+    const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+    const token = await getMpesaAccessToken();
+    const payload = {
+        BusinessShortCode: tillNumber,
+        Password: createStkPassword(tillNumber, passkey, timestamp),
+        Timestamp: timestamp,
+        CheckoutRequestID: checkoutRequestId,
+    };
+
+    const response = await fetch(`${MPESA_BASE_URL}/mpesa/stkpushquery/v1/query`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    const data = await readMpesaResponse<Record<string, unknown>>(response);
+    return { response, data };
+}
+
 export async function sendTillStkPush({ orderId, phoneNumber, amount }: { orderId: string; phoneNumber: string; amount: number }) {
     const tillNumber = requiredEnv('MPESA_TILL_NUMBER');
     const passkey = requiredEnv('MPESA_PASSKEY');
