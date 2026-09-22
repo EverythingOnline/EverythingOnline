@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import SearchBar from './SearchBar';
 import { useCart } from '../hooks/useCart';
-import { Menu, ShoppingBasket, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 type HeaderProps = {
     onCartOpen: () => void;
@@ -23,9 +23,7 @@ function Header({ onCartOpen }: HeaderProps) {
         <header className="sticky top-0 z-50 border-b border-[#deded2] bg-[#f8f7f1]/95 backdrop-blur">
             <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-4 lg:px-8">
                 <Link to="/" className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1d3b2d] text-[#f7e6bc]">
-                        <ShoppingBasket size={20} strokeWidth={1.8} />
-                    </div>
+                    <img src="/everythingonline-logo.svg" alt="" className="h-11 w-11 rounded-xl" />
                     <div>
                         <p className="font-serif text-xl font-semibold tracking-tight text-[#1d3b2d]">EverythingOnline</p>
                         <p className="text-[10px] uppercase tracking-[0.3em] text-[#9b7440]">Your Everyday Marketplace</p>

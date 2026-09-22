@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">EverythingOnline basket logo</title>
+  <desc id="desc">A cream shopping basket on a deep green rounded square with a gold circle.</desc>
+  <rect width="512" height="512" rx="88" fill="#0d4537"/>
+  <path fill="none" stroke="#f7f3e9" stroke-linecap="round" stroke-width="16" d="M180 246c22-42 48-62 76-62s54 20 76 62"/>
+  <path fill="#f7f3e9" d="M106 246h300l-33 131c-4 15-15 24-31 24H170c-16 0-27-9-31-24z"/>
+  <path fill="#0d4537" d="M116 278h280v8H116zM143 278l26 123h9l-25-123zM212 278l8 123h9l-8-123zM284 278v123h9V278zM357 278l-25 123h9l26-123z"/>
+  <circle cx="256" cy="337" r="16" fill="#d19b32"/>
+</svg>
