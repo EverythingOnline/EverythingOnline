@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 
-const MPESA_ENV = process.env.MPESA_ENV === 'production' ? 'production' : 'sandbox';
+const MPESA_ENV = (process.env.MPESA_ENVIRONMENT ?? process.env.MPESA_ENV) === 'production' ? 'production' : 'sandbox';
 const MPESA_BASE_URL = MPESA_ENV === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
 
 let cachedToken: { value: string; expiresAt: number } | undefined;
