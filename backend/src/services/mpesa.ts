@@ -37,6 +37,8 @@ export async function getMpesaAccessToken() {
     const response = await fetch(`${MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials`, {
         headers: { Authorization: `Basic ${Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')}` },
     });
+    // TEMP DEBUG - remove after diagnosing Merchant does not exist issue
+    console.log('[MPESA DEBUG] Token request status:', response.status);
     const data = await readMpesaResponse<{ access_token?: string; expires_in?: string }>(response);
     if (!response.ok || !data.access_token) throw new Error('Unable to get M-Pesa access token');
 
@@ -97,11 +99,17 @@ export async function sendTillStkPush({ orderId, phoneNumber, amount }: { orderI
         TransactionDesc: `Payment for order ${orderId}`,
     };
 
+    // TEMP DEBUG - remove after diagnosing Merchant does not exist issue
+    console.log('[MPESA DEBUG] STK push payload:', JSON.stringify(payload, null, 2));
     const response = await fetch(`${MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
     });
+    // TEMP DEBUG - remove after diagnosing Merchant does not exist issue
+    const rawText = await response.clone().text();
+    console.log('[MPESA DEBUG] Response status:', response.status);
+    console.log('[MPESA DEBUG] Response body:', rawText);
     const data = await readMpesaResponse<MpesaStkResponse>(response);
     return { response, data };
 }
