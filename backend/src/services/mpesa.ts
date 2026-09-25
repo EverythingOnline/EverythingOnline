@@ -80,14 +80,15 @@ export async function queryStkStatus(checkoutRequestId: string) {
 }
 
 export async function sendTillStkPush({ orderId, phoneNumber, amount }: { orderId: string; phoneNumber: string; amount: number }) {
+    const storeNumber = requiredEnv('MPESA_STORE_NUMBER');
     const tillNumber = requiredEnv('MPESA_TILL_NUMBER');
     const passkey = requiredEnv('MPESA_PASSKEY');
     const callbackUrl = requiredEnv('MPESA_CALLBACK_URL');
     const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
     const token = await getMpesaAccessToken();
     const payload = {
-        BusinessShortCode: tillNumber,
-        Password: createStkPassword(tillNumber, passkey, timestamp),
+        BusinessShortCode: storeNumber,
+        Password: createStkPassword(storeNumber, passkey, timestamp),
         Timestamp: timestamp,
         TransactionType: 'CustomerBuyGoodsOnline',
         Amount: Math.round(amount),
