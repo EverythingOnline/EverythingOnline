@@ -80,6 +80,7 @@ export async function initiateMpesa(req: Request, res: Response, next: NextFunct
 export async function mpesaCallback(req: Request, res: Response, next: NextFunction) {
     try {
         const body = req.body;
+        console.log('M-Pesa payload:', JSON.stringify(body, null, 2));
         const stkCallback = body?.Body?.stkCallback;
         if (!stkCallback) {
             return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
@@ -124,8 +125,12 @@ export async function mpesaCallback(req: Request, res: Response, next: NextFunct
                 where: { id: payment.id },
                 data: {
                     amount: callbackAmount === undefined ? payment.amount : Number(callbackAmount),
+                    reference: receipt ? String(receipt) : null,
                     merchantRequestId: stkCallback.MerchantRequestID ?? null,
+                    resultCode,
+                    resultDesc: stkCallback.ResultDesc ?? null,
                     callbackData: JSON.stringify(stkCallback),
+                    rawPayload: JSON.stringify(body),
                 },
             });
             await finalizeOrderPayment({
